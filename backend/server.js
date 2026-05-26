@@ -11,7 +11,7 @@ import seedRoutes from './routes/seed.js';
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
