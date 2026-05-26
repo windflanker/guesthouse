@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.js';
 import roomRoutes from './routes/rooms.js';
 import bookingRoutes from './routes/bookings.js';
 import dashboardRoutes from './routes/dashboard.js';
+import seedRoutes from './routes/seed.js';
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/seed', seedRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
