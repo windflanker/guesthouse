@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_URL || '') + '/api';
+const BASE = 'https://guesthouse-backend-5ihg.onrender.com/api';
 
 function getToken() {
   return localStorage.getItem('gh_token');
