@@ -24,7 +24,7 @@ router.get('/', async (_req, res) => {
 
     const exists = await Admin.findOne({ username: 'admin' });
     if (!exists) {
-      await new Admin({ username: 'admin', password: 'admin123' }).save();
+      await new Admin({ username: 'admin', password: 'Secure#114' }).save();
     }
 
     res.json({ success: true, message: '12 rooms and admin seeded successfully!' });
