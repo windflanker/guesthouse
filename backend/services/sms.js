@@ -1,77 +1,79 @@
-/**
- * SMS Service — MSG91
- * Docs: https://docs.msg91.com/reference/send-sms
- *
- * Set in .env:
- *   MSG91_AUTH_KEY
- *   MSG91_SENDER_ID   (e.g. GHBOOK)
- *   MSG91_TEMPLATE_ID (DLT registered template ID)
- */
+const AUTH_KEY = process.env.MSG91_AUTH_KEY;
+const SENDER_ID = process.env.MSG91_SENDER_ID || 'GHBOOK';
 
-const BASE_URL = 'https://api.msg91.com/api/v5/flow/';
+const TEMPLATES = {
+  approved:   '6a1877a41c1029ad1b0ed2d3',
+  rejected:   '6a1877e1ac592fd9e905ccd4',
+  checkedIn:  '6a187800994a412b890821a0',
+  checkedOut: '6a18781d0928432b3b0864c3',
+  cancelled:  '6a187848369c5f6dbc0e4362',
+};
 
-async function send(mobile, message) {
-  if (!process.env.MSG91_AUTH_KEY) {
-    // Dev mode — just log
-    console.log(`[SMS DEV] To: ${mobile} | Msg: ${message}`);
+async function send(mobile, templateId, variables) {
+  if (!AUTH_KEY) {
+    console.log(`[SMS DEV] To: ${mobile} | Template: ${templateId} | Vars:`, variables);
     return;
   }
 
   const payload = {
-    template_id: process.env.MSG91_TEMPLATE_ID,
-    sender:      process.env.MSG91_SENDER_ID,
+    template_id: templateId,
+    sender:      SENDER_ID,
     short_url:   '0',
     mobiles:     mobile.replace(/\s+/g, ''),
-    VAR1:        message,
+    ...variables,
   };
 
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'authkey': process.env.MSG91_AUTH_KEY,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    console.error('[SMS] Failed:', await res.text());
+  try {
+    const res = await fetch('https://api.msg91.com/api/v5/flow/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authkey': AUTH_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) console.error('[SMS] Failed:', await res.text());
+  } catch (err) {
+    console.error('[SMS] Error:', err.message);
   }
 }
 
-// ------ Notification helpers ------
-
 export async function smsApproved(booking) {
-  await send(
-    booking.officer.mobile,
-    `Dear ${booking.officer.rank} ${booking.officer.name}, your booking ${booking.ref} is APPROVED. Room ${booking.room?.number || ''} assigned. Check-in: ${booking.checkin}. Officers' Guest House.`
-  );
+  await send(booking.officer.mobile, TEMPLATES.approved, {
+    name: `${booking.officer.rank} ${booking.officer.name}`,
+    ref:  booking.ref,
+    room: booking.room?.name || booking.room?.number || '',
+    date: booking.checkin,
+  });
 }
 
 export async function smsRejected(booking) {
-  await send(
-    booking.officer.mobile,
-    `Dear ${booking.officer.rank} ${booking.officer.name}, booking ${booking.ref} has been REJECTED. Please contact the guest house office for details.`
-  );
+  await send(booking.officer.mobile, TEMPLATES.rejected, {
+    name: `${booking.officer.rank} ${booking.officer.name}`,
+    ref:  booking.ref,
+  });
 }
 
 export async function smsCheckedIn(booking) {
-  await send(
-    booking.officer.mobile,
-    `Welcome ${booking.officer.rank} ${booking.officer.name}! You are checked in to Room ${booking.room?.number || ''}. Checkout: ${booking.checkout}. Officers' Guest House.`
-  );
+  await send(booking.officer.mobile, TEMPLATES.checkedIn, {
+    name: `${booking.officer.rank} ${booking.officer.name}`,
+    room: booking.room?.name || booking.room?.number || '',
+    date: booking.checkout,
+  });
 }
 
 export async function smsCheckedOut(booking) {
-  await send(
-    booking.officer.mobile,
-    `Dear ${booking.officer.rank} ${booking.officer.name}, you have been checked out of Room ${booking.room?.number || ''} on ${booking.actualCheckout || booking.checkout}. Thank you for your stay. Officers' Guest House.`
-  );
+  await send(booking.officer.mobile, TEMPLATES.checkedOut, {
+    name: `${booking.officer.rank} ${booking.officer.name}`,
+    room: booking.room?.name || booking.room?.number || '',
+    date: booking.actualCheckout || booking.checkout,
+  });
 }
 
 export async function smsCancelled(booking) {
-  await send(
-    booking.officer.mobile,
-    `Dear ${booking.officer.rank} ${booking.officer.name}, booking ${booking.ref} has been CANCELLED. Reason: ${booking.cancelReason}. Contact the office for queries.`
-  );
+  await send(booking.officer.mobile, TEMPLATES.cancelled, {
+    name:   `${booking.officer.rank} ${booking.officer.name}`,
+    ref:    booking.ref,
+    reason: booking.cancelReason,
+  });
 }
