@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../utils/api.js';
 import Badge from '../components/Badge.jsx';
 import Modal from '../components/Modal.jsx';
@@ -43,16 +43,20 @@ export default function RoomsPage() {
   const [success, setSuccess]     = useState('');
   const [errors, setErrors]       = useState({});
 
-  const load = async () => {
-    const [r, b] = await Promise.all([
-      api.get('/rooms'),
-      api.get('/bookings'),
-    ]);
-    setRooms(r);
-    setBookings(b);
-  };
+  const load = useCallback(async () => {
+    try {
+      const [r, b] = await Promise.all([
+        api.get('/rooms'),
+        api.get('/bookings'),
+      ]);
+      setRooms([...r]);
+      setBookings([...b]);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const getRoomInfo = (room) => {
     const date = selectedDate;
@@ -76,7 +80,8 @@ export default function RoomsPage() {
     setSaving(true);
     try {
       await api.patch(`/rooms/${room._id}`, { name: editing.name });
-      setEditing(null); load();
+      setEditing(null);
+      await load();
     } finally { setSaving(false); }
   };
 
@@ -126,7 +131,7 @@ export default function RoomsPage() {
       });
       await api.patch(`/bookings/${booking._id}/approve`, { roomId: modal.room._id });
       setSuccess(`✅ ${modal.room.name} assigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
-      load();
+      await load();
     } catch (err) {
       setErrors({ submit: err.message });
     } finally { setFormLoading(false); }
@@ -138,15 +143,22 @@ export default function RoomsPage() {
     if (Object.keys(errs).length > 0) return;
     setFormLoading(true);
     try {
+      // Step 1: Cancel existing booking
       if (modal.info.booking) {
         await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
           cancelReason: `Room reassigned to ${form.name} by admin`,
         });
       }
+
+      // Step 2: Release room explicitly
       await api.patch(`/rooms/${modal.room._id}`, {
         status: 'available', currentGuest: null, currentBooking: null,
       });
-      await new Promise(r => setTimeout(r, 600));
+
+      // Step 3: Wait for DB to settle
+      await new Promise(r => setTimeout(r, 800));
+
+      // Step 4: Create new booking
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
       const newBooking = await api.post('/bookings', {
         officer: {
@@ -159,11 +171,17 @@ export default function RoomsPage() {
         checkin: form.checkin,
         checkout: form.checkout,
       });
+
+      // Step 5: Approve with room
       await api.patch(`/bookings/${newBooking._id}/approve`, { roomId: modal.room._id });
+
+      // Step 6: Force fresh data from server
+      await load();
+
       setSuccess(`✅ ${modal.room.name} reassigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
-      load();
     } catch (err) {
       setErrors({ submit: err.message });
+      await load();
     } finally { setFormLoading(false); }
   };
 
@@ -178,8 +196,8 @@ export default function RoomsPage() {
       await api.patch(`/rooms/${modal.room._id}`, {
         status: 'available', currentGuest: null, currentBooking: null,
       });
+      await load();
       setSuccess(`✅ ${modal.room.name} has been made vacant.`);
-      load();
     } catch (err) {
       setErrors({ submit: err.message });
     } finally { setFormLoading(false); }
