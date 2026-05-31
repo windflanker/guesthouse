@@ -85,15 +85,15 @@ function buildMessage(type, booking, roomName) {
   const ref = booking.ref;
   switch (type) {
     case 'approve':
-      return `Dear ${name},\n\nYour booking ${ref} has been APPROVED.\nRoom assigned: ${roomName}\nCheck-in: ${booking.checkin}\nCheck-out: ${booking.checkout}\n\nPlease report to the Guest House reception on check-in date.\n\nOfficers' Guest House`;
+      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
     case 'reject':
-      return `Dear ${name},\n\nYour booking ${ref} has been REJECTED.\n\nPlease contact the Guest House office for further details.\n\nOfficers' Guest House`;
+      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. Request you may please check back closer to the date.\n\nRegards`;
     case 'checkin':
-      return `Dear ${name},\n\nWelcome! You have been checked in to Room ${roomName}.\n\nScheduled Check-out: ${booking.checkout}\n\nWe hope you have a comfortable stay.\n\nOfficers' Guest House`;
+      return `Dear ${booking.officer.name},\n\nYou have been checked in to the Guest Room from ${booking.checkin} to ${booking.checkout}. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
     case 'checkout':
-      return `Dear ${name},\n\nYou have been checked out of Room ${roomName}.\n\nThank you for staying at the Officers' Guest House. We hope to see you again.\n\nOfficers' Guest House`;
+      return `Dear ${booking.officer.name},\n\nYou have been checked out of the Guest Room on ${booking.actualCheckout || booking.checkout}. Thank you for your stay. We hope to see you again.\n\nRegards`;
     case 'cancel':
-      return `Dear ${name},\n\nYour booking ${ref} has been CANCELLED.\n\nReason: ${booking.cancelReason}\n\nFor further queries please contact the Guest House office.\n\nOfficers' Guest House`;
+      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
     default:
       return '';
   }
@@ -216,7 +216,7 @@ export default function BookingsPage() {
     } finally { setLoading(false); }
   };
 
-  const getActions = (b) => {
+ const getActions = (b) => {
     if (b.status === 'Pending') return (
       <>
         <button style={s.abt('green')} onClick={() => openApprove(b)}>Approve &amp; assign room</button>
@@ -226,13 +226,6 @@ export default function BookingsPage() {
     );
     if (b.status === 'Approved') return (
       <>
-        <button style={s.abt('blue')} onClick={() => openCheckin(b)}>Check in</button>
-        <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
-      </>
-    );
-    if (b.status === 'Checked In') return (
-      <>
-        <button style={s.abt('blue')} onClick={() => openCheckout(b)}>Check out</button>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
       </>
     );
