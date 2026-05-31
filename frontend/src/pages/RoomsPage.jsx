@@ -23,9 +23,7 @@ const RANKS = [
 
 const BORDER = { available: '#1D9E75', pending: '#EF9F27', occupied: '#E24B4A' };
 
-function toDateStr(date) {
-  return date.toISOString().split('T')[0];
-}
+function toDateStr(date) { return date.toISOString().split('T')[0]; }
 
 const emptyForm = {
   name: '', rank: '', unit: '', mobile: '', email: '',
@@ -38,7 +36,8 @@ export default function RoomsPage() {
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
   const [editing, setEditing]   = useState(null);
   const [saving, setSaving]     = useState(false);
-  const [modal, setModal]       = useState(null); // { room }
+  const [modal, setModal]       = useState(null);
+  const [modalMode, setModalMode] = useState('assign'); // 'assign' | 'reassign' | 'vacate-confirm'
   const [form, setForm]         = useState(emptyForm);
   const [formLoading, setFormLoading] = useState(false);
   const [success, setSuccess]   = useState('');
@@ -62,8 +61,8 @@ export default function RoomsPage() {
       ['Approved', 'Checked In'].includes(b.status) &&
       b.checkin <= date && b.checkout >= date
     );
-    if (booking) return { status: 'occupied', guest: booking.officer.name, checkin: booking.checkin, checkout: booking.checkout };
-    return { status: 'available', guest: null };
+    if (booking) return { status: 'occupied', guest: booking.officer.name, checkin: booking.checkin, checkout: booking.checkout, booking };
+    return { status: 'available', guest: null, booking: null };
   };
 
   const saveName = async (room) => {
@@ -74,13 +73,13 @@ export default function RoomsPage() {
     } finally { setSaving(false); }
   };
 
-  const openBookingForm = (room) => {
+  const openModal = (room) => {
     const info = getRoomStatusOnDate(room);
-    if (info.status === 'occupied') return; // don't open for occupied rooms
     setForm({ ...emptyForm, checkin: selectedDate });
     setErrors({});
     setSuccess('');
-    setModal({ room });
+    setModalMode('assign');
+    setModal({ room, info });
   };
 
   const setField = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
@@ -100,16 +99,13 @@ export default function RoomsPage() {
     return errs;
   };
 
-  const handleDirectBook = async () => {
+  const handleAssign = async () => {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-
     setFormLoading(true);
     try {
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
-
-      // 1. Create booking as Pending
       const booking = await api.post('/bookings', {
         officer: {
           name: form.name, rank: form.rank, unit: form.unit,
@@ -121,53 +117,154 @@ export default function RoomsPage() {
         checkin: form.checkin,
         checkout: form.checkout,
       });
-
-      // 2. Immediately approve with selected room
       await api.patch(`/bookings/${booking._id}/approve`, { roomId: modal.room._id });
-
-      setSuccess(`✅ Room ${modal.room.name} successfully assigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
+      setSuccess(`✅ ${modal.room.name} assigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
       load();
     } catch (err) {
       setErrors({ submit: err.message });
-    } finally {
-      setFormLoading(false);
-    }
+    } finally { setFormLoading(false); }
+  };
+
+  const handleReassign = async () => {
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setFormLoading(true);
+    try {
+      // Cancel existing booking first
+      if (modal.info.booking) {
+        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
+          cancelReason: `Room reassigned to ${form.name} by admin`,
+        });
+      }
+      // Create new booking and approve
+      const category = RANKS.find(r => r.label === form.rank)?.value || 1;
+      const booking = await api.post('/bookings', {
+        officer: {
+          name: form.name, rank: form.rank, unit: form.unit,
+          mobile: form.mobile, email: form.email,
+          idType: form.idType, idNumber: form.idNumber,
+          arrivalTime: form.arrivalTime,
+        },
+        category,
+        checkin: form.checkin,
+        checkout: form.checkout,
+      });
+      await api.patch(`/bookings/${booking._id}/approve`, { roomId: modal.room._id });
+      setSuccess(`✅ ${modal.room.name} reassigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
+      load();
+    } catch (err) {
+      setErrors({ submit: err.message });
+    } finally { setFormLoading(false); }
+  };
+
+  const handleVacate = async () => {
+    setFormLoading(true);
+    try {
+      if (modal.info.booking) {
+        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
+          cancelReason: 'Room vacated by admin',
+        });
+      }
+      await api.patch(`/rooms/${modal.room._id}`, {
+        status: 'available', currentGuest: null, currentBooking: null,
+      });
+      setSuccess(`✅ ${modal.room.name} has been made vacant.`);
+      load();
+    } catch (err) {
+      setErrors({ submit: err.message });
+    } finally { setFormLoading(false); }
   };
 
   const isToday = selectedDate === toDateStr(new Date());
   const availableCount = rooms.filter(r => getRoomStatusOnDate(r).status === 'available').length;
 
+  const bookingForm = (onSubmit, submitLabel) => (
+    <>
+      {errors.submit && <div style={fs.errorBox}>{errors.submit}</div>}
+      <div style={fs.sectionLabel}>Officer Details</div>
+      <div style={fs.grid}>
+        <Field label="Full Name" error={errors.name} required>
+          <input style={inp(errors.name)} value={form.name} onChange={setField('name')} placeholder="e.g. Rajiv Kumar" />
+        </Field>
+        <Field label="Rank" error={errors.rank} required>
+          <select style={inp(errors.rank)} value={form.rank} onChange={setField('rank')}>
+            <option value="">Select rank</option>
+            {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Unit / Organisation" error={errors.unit} required>
+          <input style={inp(errors.unit)} value={form.unit} onChange={setField('unit')} placeholder="e.g. 5 Rajput Regiment" />
+        </Field>
+        <Field label="Mobile Number" error={errors.mobile} required>
+          <input style={inp(errors.mobile)} value={form.mobile}
+            onChange={e => setForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g,'').slice(0,10) }))}
+            placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
+        </Field>
+        <Field label="Email Address">
+          <input style={inp('')} type="email" value={form.email} onChange={setField('email')} placeholder="officer@army.in" />
+        </Field>
+        <Field label="Govt ID Type">
+          <select style={inp('')} value={form.idType} onChange={setField('idType')}>
+            <option value="">Select</option>
+            <option>Service ID card</option>
+            <option>Aadhaar card</option>
+            <option>Passport</option>
+          </select>
+        </Field>
+        <Field label="Govt ID Number">
+          <input style={inp('')} value={form.idNumber} onChange={setField('idNumber')} placeholder="ID number" />
+        </Field>
+      </div>
+      <div style={{ ...fs.sectionLabel, marginTop: 14 }}>Stay Details</div>
+      <div style={fs.grid}>
+        <Field label="Check-in Date" error={errors.checkin} required>
+          <input type="date" style={inp(errors.checkin)} value={form.checkin} onChange={setField('checkin')} />
+        </Field>
+        <Field label="Check-out Date" error={errors.checkout} required>
+          <input type="date" style={inp(errors.checkout)} value={form.checkout} onChange={setField('checkout')} />
+        </Field>
+        <Field label="Expected Arrival Time" error={errors.arrivalTime} required>
+          <input type="time" style={inp(errors.arrivalTime)} value={form.arrivalTime} onChange={setField('arrivalTime')} />
+        </Field>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+        <button style={mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+        <button style={mBtn('blue')} onClick={onSubmit} disabled={formLoading}>
+          {formLoading ? 'Saving…' : submitLabel}
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div>
       <div style={s.pageHeader}>
         <h2 style={s.pageTitle}>Room Status</h2>
-        <p style={s.pageSub}>Check availability for any date · Click an available room to assign directly</p>
+        <p style={s.pageSub}>Click any room to assign, reassign or vacate</p>
       </div>
 
-      {/* Date picker */}
       <div style={s.datePicker}>
         <div style={s.dateLabel}>Check availability for:</div>
         <input type="date" value={selectedDate}
           onChange={e => setSelectedDate(e.target.value)}
           style={s.dateInput} />
         {!isToday && (
-          <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>
-            Today
-          </button>
+          <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>
         )}
-        <div style={s.dateSummary}>
-          {availableCount} of {rooms.length} rooms available
-        </div>
+        <div style={s.dateSummary}>{availableCount} of {rooms.length} rooms available</div>
       </div>
 
-      {/* Legend */}
       <div style={s.legend}>
-        {[['Available (click to assign)','#1D9E75'],['Occupied','#E24B4A'],['Pending','#EF9F27']].map(([l,c]) => (
+        {[['Available','#1D9E75'],['Occupied','#E24B4A'],['Pending','#EF9F27']].map(([l,c]) => (
           <div key={l} style={s.legendItem}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />
             {l}
           </div>
         ))}
+        <div style={{ ...s.legendItem, marginLeft: 8, color: '#185FA5', fontSize: 11 }}>
+          💡 Click any room to manage
+        </div>
       </div>
 
       {[1, 2, 3].map(cat => (
@@ -184,29 +281,19 @@ export default function RoomsPage() {
           <div style={s.grid}>
             {rooms.filter(r => r.category === cat).map(room => {
               const info = getRoomStatusOnDate(room);
-              const isAvail = info.status === 'available';
               return (
-                <div
-                  key={room._id}
-                  style={{
-                    ...s.roomCard,
-                    borderLeft: `3px solid ${BORDER[info.status] || '#9A9895'}`,
-                    cursor: isAvail ? 'pointer' : 'default',
-                    opacity: isAvail ? 1 : 0.85,
-                  }}
-                  onClick={() => isAvail && openBookingForm(room)}
-                  title={isAvail ? `Click to assign ${room.name}` : ''}
-                >
+                <div key={room._id}
+                  style={{ ...s.roomCard, borderLeft: `3px solid ${BORDER[info.status] || '#9A9895'}`, cursor: 'pointer' }}
+                  onClick={() => openModal(room)}>
                   <div style={s.roomNo}>{room.number}</div>
 
-                  {/* Editable name */}
                   {editing?.roomId === room._id ? (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}
                       onClick={e => e.stopPropagation()}>
                       <input style={s.nameInput} value={editing.name}
                         onChange={e => setEditing(ed => ({ ...ed, name: e.target.value }))} autoFocus />
                       <button style={s.saveBtn} onClick={() => saveName(room)} disabled={saving}>✓</button>
-                      <button style={s.cancelBtn} onClick={() => setEditing(null)}>✕</button>
+                      <button style={s.cancelNameBtn} onClick={() => setEditing(null)}>✕</button>
                     </div>
                   ) : (
                     <div style={s.roomName}
@@ -223,9 +310,9 @@ export default function RoomsPage() {
                       <div style={{ fontWeight: 500, fontSize: 12 }}>{info.guest}</div>
                       <div style={{ fontSize: 11, color: '#5A5855', marginTop: 2 }}>{info.checkin} → {info.checkout}</div>
                     </div>
-                  ) : isAvail ? (
+                  ) : (
                     <div style={s.assignHint}>+ Click to assign</div>
-                  ) : null}
+                  )}
 
                   <Badge status={info.status} />
                 </div>
@@ -235,84 +322,80 @@ export default function RoomsPage() {
         </div>
       ))}
 
-      {/* Direct Booking Modal */}
+      {/* Room Management Modal */}
       {modal && (
-        <Modal title={`Assign ${modal.room.name} (${modal.room.number})`} onClose={() => { setModal(null); setSuccess(''); setErrors({}); }}>
+        <Modal
+          title={`${modal.room.name} (${modal.room.number})`}
+          onClose={() => { setModal(null); setSuccess(''); setErrors({}); }}>
+
           {success ? (
             <>
               <div style={doneBox}>{success}</div>
-              <div style={{ marginTop: 16, fontSize: 13, color: '#5A5855' }}>
-                The booking has been created and the room assigned. You can view it in the Bookings page.
-              </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
                 <button style={mBtn('blue')} onClick={() => { setModal(null); setSuccess(''); }}>Done</button>
               </div>
             </>
           ) : (
             <>
-              <div style={formStyles.roomBadge}>
-                <span style={{ ...formStyles.catTag, background: CAT[modal.room.category].bg, color: CAT[modal.room.category].text }}>
+              {/* Room info */}
+              <div style={fs.roomInfo}>
+                <span style={{ ...fs.catTag, background: CAT[modal.room.category].bg, color: CAT[modal.room.category].text }}>
                   {CAT[modal.room.category].label}
                 </span>
-                <span style={formStyles.dateNote}>Date: {selectedDate}</span>
+                <Badge status={modal.info.status} />
+                {modal.info.guest && (
+                  <span style={{ fontSize: 13, color: '#5A5855' }}>
+                    Currently: <strong>{modal.info.guest}</strong> ({modal.info.checkin} → {modal.info.checkout})
+                  </span>
+                )}
               </div>
 
-              {errors.submit && <div style={formStyles.errorBox}>{errors.submit}</div>}
-
-              <div style={formStyles.sectionLabel}>Officer Details</div>
-              <div style={formStyles.grid}>
-                <Field label="Full Name" error={errors.name} required>
-                  <input style={inputStyle(errors.name)} value={form.name} onChange={setField('name')} placeholder="e.g. Rajiv Kumar" />
-                </Field>
-                <Field label="Rank" error={errors.rank} required>
-                  <select style={inputStyle(errors.rank)} value={form.rank} onChange={setField('rank')}>
-                    <option value="">Select rank</option>
-                    {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
-                  </select>
-                </Field>
-                <Field label="Unit / Organisation" error={errors.unit} required>
-                  <input style={inputStyle(errors.unit)} value={form.unit} onChange={setField('unit')} placeholder="e.g. 5 Rajput Regiment" />
-                </Field>
-                <Field label="Mobile Number" error={errors.mobile} required>
-                  <input style={inputStyle(errors.mobile)} value={form.mobile}
-                    onChange={e => setForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g,'').slice(0,10) }))}
-                    placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
-                </Field>
-                <Field label="Email Address">
-                  <input style={inputStyle('')} type="email" value={form.email} onChange={setField('email')} placeholder="officer@army.in" />
-                </Field>
-                <Field label="Govt ID Type">
-                  <select style={inputStyle('')} value={form.idType} onChange={setField('idType')}>
-                    <option value="">Select</option>
-                    <option>Service ID card</option>
-                    <option>Aadhaar card</option>
-                    <option>Passport</option>
-                  </select>
-                </Field>
-                <Field label="Govt ID Number">
-                  <input style={inputStyle('')} value={form.idNumber} onChange={setField('idNumber')} placeholder="ID number" />
-                </Field>
+              {/* Action tabs */}
+              <div style={fs.tabs}>
+                {modal.info.status === 'available' ? (
+                  <div style={fs.tabActive}>Assign to Guest</div>
+                ) : (
+                  <>
+                    <div
+                      style={modalMode === 'reassign' ? fs.tabActive : fs.tab}
+                      onClick={() => { setModalMode('reassign'); setErrors({}); }}>
+                      Reassign to New Guest
+                    </div>
+                    <div
+                      style={modalMode === 'vacate-confirm' ? { ...fs.tabActive, background: '#FCEBEB', color: '#A32D2D', borderColor: '#E24B4A' } : { ...fs.tab, color: '#A32D2D' }}
+                      onClick={() => { setModalMode('vacate-confirm'); setErrors({}); }}>
+                      Make Vacant
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div style={{ ...formStyles.sectionLabel, marginTop: 16 }}>Stay Details</div>
-              <div style={formStyles.grid}>
-                <Field label="Check-in Date" error={errors.checkin} required>
-                  <input type="date" style={inputStyle(errors.checkin)} value={form.checkin} onChange={setField('checkin')} />
-                </Field>
-                <Field label="Check-out Date" error={errors.checkout} required>
-                  <input type="date" style={inputStyle(errors.checkout)} value={form.checkout} onChange={setField('checkout')} />
-                </Field>
-                <Field label="Expected Time of Arrival" error={errors.arrivalTime} required>
-                  <input type="time" style={inputStyle(errors.arrivalTime)} value={form.arrivalTime} onChange={setField('arrivalTime')} />
-                </Field>
-              </div>
+              {/* Assign form */}
+              {(modal.info.status === 'available' || modalMode === 'reassign') &&
+                bookingForm(
+                  modal.info.status === 'available' ? handleAssign : handleReassign,
+                  modal.info.status === 'available'
+                    ? `Assign ${modal.room.name}`
+                    : `Reassign ${modal.room.name} to New Guest`
+                )
+              }
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-                <button style={mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-                <button style={mBtn('blue')} onClick={handleDirectBook} disabled={formLoading}>
-                  {formLoading ? 'Assigning…' : `Assign ${modal.room.name} & Confirm`}
-                </button>
-              </div>
+              {/* Vacate confirmation */}
+              {modal.info.status !== 'available' && modalMode === 'vacate-confirm' && (
+                <div>
+                  <div style={fs.vacateWarning}>
+                    ⚠️ This will cancel the current booking for <strong>{modal.info.guest}</strong> and make <strong>{modal.room.name}</strong> vacant.
+                  </div>
+                  {errors.submit && <div style={fs.errorBox}>{errors.submit}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+                    <button style={mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                    <button style={{ ...mBtn('gray'), background: '#A32D2D', color: '#fff', border: 'none' }}
+                      onClick={handleVacate} disabled={formLoading}>
+                      {formLoading ? 'Processing…' : 'Confirm — Make Vacant'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </Modal>
@@ -333,7 +416,7 @@ function Field({ label, children, error, required }) {
   );
 }
 
-const inputStyle = (error) => ({
+const inp = (error) => ({
   padding: '7px 10px', fontSize: 13, width: '100%',
   border: `0.5px solid ${error ? '#E24B4A' : 'rgba(0,0,0,0.18)'}`,
   borderRadius: 8, outline: 'none',
@@ -351,41 +434,36 @@ const mBtn = (variant) => {
     gray: { bg: '#fff', color: '#1A1917', border: '0.5px solid rgba(0,0,0,0.18)' },
   };
   const v = map[variant];
-  return {
-    padding: '8px 18px', fontSize: 13, borderRadius: 10,
-    cursor: 'pointer', background: v.bg, color: v.color,
-    border: v.border, fontFamily: 'inherit',
-  };
+  return { padding: '8px 18px', fontSize: 13, borderRadius: 10, cursor: 'pointer', background: v.bg, color: v.color, border: v.border, fontFamily: 'inherit' };
 };
 
-const formStyles = {
-  roomBadge: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 },
-  catTag: { fontSize: 11, padding: '3px 10px', borderRadius: 99, fontWeight: 500 },
-  dateNote: { fontSize: 12, color: '#5A5855' },
+const fs = {
+  roomInfo:     { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' },
+  catTag:       { fontSize: 11, padding: '3px 10px', borderRadius: 99, fontWeight: 500 },
+  tabs:         { display: 'flex', gap: 8, marginBottom: 16, borderBottom: '0.5px solid rgba(0,0,0,0.1)', paddingBottom: 12 },
+  tab:          { fontSize: 13, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid rgba(0,0,0,0.18)', color: '#5A5855', background: '#fff' },
+  tabActive:    { fontSize: 13, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid #185FA5', color: '#185FA5', background: '#E6F1FB', fontWeight: 500 },
   sectionLabel: { fontSize: 11, fontWeight: 600, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  errorBox: { background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 12 },
+  grid:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  errorBox:     { background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 12 },
+  vacateWarning:{ background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#854F0B', marginTop: 8 },
 };
 
 const s = {
-  pageHeader: { marginBottom: 20 },
-  pageTitle:  { fontSize: 22, fontWeight: 500, color: '#1A1917' },
-  pageSub:    { fontSize: 13, color: '#9A9895', marginTop: 4 },
-  datePicker: {
-    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
-    background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)',
-    borderRadius: 12, padding: '14px 18px',
-  },
+  pageHeader:  { marginBottom: 20 },
+  pageTitle:   { fontSize: 22, fontWeight: 500, color: '#1A1917' },
+  pageSub:     { fontSize: 13, color: '#9A9895', marginTop: 4 },
+  datePicker:  { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '14px 18px' },
   dateLabel:   { fontSize: 13, fontWeight: 500, color: '#5A5855' },
   dateInput:   { fontSize: 14, padding: '7px 12px', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 8, background: '#f7f6f2', color: '#1A1917', outline: 'none' },
   todayBtn:    { fontSize: 12, padding: '6px 12px', background: '#E6F1FB', color: '#185FA5', border: 'none', borderRadius: 8, cursor: 'pointer' },
   dateSummary: { marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: '#3B6D11', background: '#EAF3DE', padding: '6px 14px', borderRadius: 8 },
-  legend:      { display: 'flex', gap: 20, marginBottom: 16 },
+  legend:      { display: 'flex', gap: 20, marginBottom: 16, alignItems: 'center' },
   legendItem:  { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#5A5855' },
   catLabel:    { fontSize: 13, fontWeight: 500, color: '#5A5855', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 },
   catTag:      { fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500 },
   grid:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 },
-  roomCard:    { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, transition: 'box-shadow 0.15s' },
+  roomCard:    { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 },
   roomNo:      { fontSize: 11, color: '#9A9895' },
   roomName:    { fontSize: 14, fontWeight: 500, color: '#1A1917', cursor: 'pointer', display: 'flex', alignItems: 'center' },
   roomCat:     { fontSize: 11, color: '#9A9895' },
@@ -393,5 +471,5 @@ const s = {
   assignHint:  { fontSize: 11, color: '#1D9E75', fontWeight: 500, marginTop: 2 },
   nameInput:   { flex: 1, padding: '4px 8px', fontSize: 13, border: '0.5px solid #185FA5', borderRadius: 6, outline: 'none', color: '#1A1917', background: '#fff' },
   saveBtn:     { background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
-  cancelBtn:   { background: 'none', color: '#9A9895', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
+  cancelNameBtn:{ background: 'none', color: '#9A9895', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
 };
