@@ -5,14 +5,21 @@ import Modal from '../components/Modal.jsx';
 
 const CAT_LABELS = { 1: 'Cat 1', 2: 'Cat 2', 3: 'Cat 3' };
 
-function WhatsAppBox({ mobile, message }) {
+function WhatsAppBox({ mobile, message, onConfirmed }) {
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [copiedNum, setCopiedNum] = useState(false);
+  const [sentStatus, setSentStatus] = useState('no');
 
   const copyText = (text, setter) => {
     navigator.clipboard.writeText(text);
     setter(true);
     setTimeout(() => setter(false), 2000);
+  };
+
+  const handleSentChange = (e) => {
+    setSentStatus(e.target.value);
+    if (e.target.value === 'yes') onConfirmed(true);
+    else onConfirmed(false);
   };
 
   return (
@@ -40,8 +47,16 @@ function WhatsAppBox({ mobile, message }) {
         </button>
       </div>
 
+      <div style={ws.confirmField}>
+        <div style={ws.label}>Have you sent this message on WhatsApp?</div>
+        <select style={ws.confirmSelect} value={sentStatus} onChange={handleSentChange}>
+          <option value="no">❌ Not sent yet</option>
+          <option value="yes">✅ Yes, message sent</option>
+        </select>
+      </div>
+
       <div style={ws.hint}>
-        Copy the number → open WhatsApp → paste number → send message
+        Copy the number → open WhatsApp → paste number → send message → confirm above
       </div>
     </div>
   );
@@ -74,24 +89,24 @@ const ws = {
     border: 'none', borderRadius: 6, padding: '8px', fontSize: 13,
     cursor: 'pointer', fontWeight: 500,
   },
+  confirmField: { marginTop: 12, marginBottom: 8 },
+  confirmSelect: {
+    width: '100%', padding: '8px 12px', fontSize: 13,
+    border: '1px solid #A5D6A7', borderRadius: 6,
+    background: '#fff', color: '#1A1917', marginTop: 4,
+  },
   hint: {
     fontSize: 10, color: '#558B2F', marginTop: 8,
     borderTop: '0.5px solid #C8E6C9', paddingTop: 8, textAlign: 'center',
   },
 };
 
-function buildMessage(type, booking, roomName) {
-  const name = `${booking.officer.rank} ${booking.officer.name}`;
-  const ref = booking.ref;
+function buildMessage(type, booking) {
   switch (type) {
     case 'approve':
       return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
     case 'reject':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. Request you may please check back closer to the date.\n\nRegards`;
-    case 'checkin':
-      return `Dear ${booking.officer.name},\n\nYou have been checked in to the Guest Room from ${booking.checkin} to ${booking.checkout}. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
-    case 'checkout':
-      return `Dear ${booking.officer.name},\n\nYou have been checked out of the Guest Room on ${booking.actualCheckout || booking.checkout}. Thank you for your stay. We hope to see you again.\n\nRegards`;
+      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
     case 'cancel':
       return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
     default:
@@ -107,13 +122,8 @@ export default function BookingsPage() {
   const [availRooms, setAvailRooms] = useState([]);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState('');
   const [actionDone, setActionDone] = useState(false);
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3500);
-  };
+  const [msgConfirmed, setMsgConfirmed] = useState(false);
 
   const load = () => {
     const params = new URLSearchParams();
@@ -125,29 +135,65 @@ export default function BookingsPage() {
   useEffect(load, [filterStatus, filterCat]);
 
   const openApprove = async (booking) => {
-    const rooms = await api.get('/rooms/available/all');
+    const rooms = await api.get(`/rooms/available/all?checkin=${booking.checkin}&checkout=${booking.checkout}`);
     setAvailRooms(rooms);
     setFormData({ roomId: rooms[0]?._id || '' });
     setActionDone(false);
+    setMsgConfirmed(false);
     setModal({ type: 'approve', booking });
+  };
+
+  const openEdit = async (booking) => {
+    const rooms = await api.get(`/rooms/available/all?checkin=${booking.checkin}&checkout=${booking.checkout}`);
+    // Also include the currently assigned room if any
+    if (booking.room) {
+      const currentRoom = { _id: booking.room._id, name: booking.room.name, number: booking.room.number, category: booking.room.category };
+      const alreadyIn = rooms.find(r => r._id === booking.room._id);
+      if (!alreadyIn) rooms.unshift(currentRoom);
+    }
+    setAvailRooms(rooms);
+    setFormData({ roomId: booking.room?._id || '' });
+    setActionDone(false);
+    setMsgConfirmed(false);
+    setModal({ type: 'edit', booking });
   };
 
   const doApprove = async () => {
     if (!formData.roomId) return alert('Please select a room.');
     setLoading(true);
     try {
-      const updated = await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
-      const selectedRoom = availRooms.find(r => r._id === formData.roomId);
-      const roomName = selectedRoom ? `${selectedRoom.name} (${selectedRoom.number})` : '';
-      const msg = buildMessage('approve', { ...modal.booking, checkin: modal.booking.checkin, checkout: modal.booking.checkout }, roomName);
-      setModal(m => ({ ...m, whatsappMsg: msg, roomName, done: true }));
+      await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
+      setActionDone(true);
+      setModal(m => ({ ...m, whatsappMsg: buildMessage('approve', modal.booking), done: true }));
+      load();
+    } catch (err) {
+      alert(err.message);
+    } finally { setLoading(false); }
+  };
+
+  const doEdit = async () => {
+    if (!formData.roomId) return alert('Please select a room.');
+    setLoading(true);
+    try {
+      // Cancel existing booking and re-approve with new room
+      await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
       setActionDone(true);
       load();
+    } catch (err) {
+      // If approve fails try direct room update
+      try {
+        await api.patch(`/rooms/${formData.roomId}`, { currentGuest: modal.booking.officer.name });
+        setActionDone(true);
+        load();
+      } catch (e) {
+        alert(e.message);
+      }
     } finally { setLoading(false); }
   };
 
   const openReject = (booking) => {
     setActionDone(false);
+    setMsgConfirmed(false);
     setModal({ type: 'reject', booking });
   };
 
@@ -155,51 +201,18 @@ export default function BookingsPage() {
     setLoading(true);
     try {
       await api.patch(`/bookings/${modal.booking._id}/reject`);
-      const msg = buildMessage('reject', modal.booking, '');
-      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
       setActionDone(true);
+      setModal(m => ({ ...m, whatsappMsg: buildMessage('reject', modal.booking), done: true }));
       load();
-    } finally { setLoading(false); }
-  };
-
-  const openCheckin = (booking) => {
-    setActionDone(false);
-    setModal({ type: 'checkin', booking });
-  };
-
-  const doCheckin = async () => {
-    setLoading(true);
-    try {
-      await api.patch(`/bookings/${modal.booking._id}/checkin`);
-      const roomName = modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '';
-      const msg = buildMessage('checkin', modal.booking, roomName);
-      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
-      setActionDone(true);
-      load();
-    } finally { setLoading(false); }
-  };
-
-  const openCheckout = (booking) => {
-    setFormData({ actualCheckout: booking.checkout, notes: '' });
-    setActionDone(false);
-    setModal({ type: 'checkout', booking });
-  };
-
-  const doCheckout = async () => {
-    setLoading(true);
-    try {
-      await api.patch(`/bookings/${modal.booking._id}/checkout`, formData);
-      const roomName = modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '';
-      const msg = buildMessage('checkout', modal.booking, roomName);
-      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
-      setActionDone(true);
-      load();
+    } catch (err) {
+      alert(err.message);
     } finally { setLoading(false); }
   };
 
   const openCancel = (booking) => {
     setFormData({ cancelReason: '' });
     setActionDone(false);
+    setMsgConfirmed(false);
     setModal({ type: 'cancel', booking });
   };
 
@@ -209,34 +222,77 @@ export default function BookingsPage() {
     try {
       await api.patch(`/bookings/${modal.booking._id}/cancel`, { cancelReason: formData.cancelReason });
       const bookingWithReason = { ...modal.booking, cancelReason: formData.cancelReason };
-      const msg = buildMessage('cancel', bookingWithReason, '');
-      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
       setActionDone(true);
+      setModal(m => ({ ...m, whatsappMsg: buildMessage('cancel', bookingWithReason), done: true }));
       load();
+    } catch (err) {
+      alert(err.message);
     } finally { setLoading(false); }
   };
 
- const getActions = (b) => {
+  const closeModal = () => {
+    setModal(null);
+    setActionDone(false);
+    setMsgConfirmed(false);
+  };
+
+  const getActions = (b) => {
+    const editBtn = (
+      <button style={s.abt('blue')} onClick={() => openEdit(b)}>Edit room</button>
+    );
     if (b.status === 'Pending') return (
       <>
         <button style={s.abt('green')} onClick={() => openApprove(b)}>Approve &amp; assign room</button>
         <button style={s.abt('red')} onClick={() => openReject(b)}>Reject</button>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
+        {editBtn}
       </>
     );
     if (b.status === 'Approved') return (
       <>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
+        {editBtn}
       </>
+    );
+    if (b.status === 'Cancelled' || b.status === 'Rejected' || b.status === 'Checked Out') return (
+      <>{editBtn}</>
     );
     return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>;
   };
+
+  const roomDropdown = (includeLabel) => (
+    <div style={{ marginTop: includeLabel ? 16 : 0 }}>
+      {includeLabel && <label style={styles.label}>Assign room</label>}
+      {availRooms.length === 0
+        ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available for these dates.</p>
+        : <select style={{ ...styles.input, marginTop: 6 }} value={formData.roomId}
+            onChange={e => setFormData(f => ({ ...f, roomId: e.target.value }))}>
+            <option value="">-- Select a room --</option>
+            {[1, 2, 3].map(cat => {
+              const catRooms = availRooms.filter(r => r.category === cat);
+              if (catRooms.length === 0) return null;
+              return (
+                <optgroup key={cat} label={
+                  cat === 1 ? 'Category 1 — Up to Lt Col' :
+                  cat === 2 ? 'Category 2 — Colonel & Brigadier' :
+                  'Category 3 — Brigadier & above'
+                }>
+                  {catRooms.map(r => (
+                    <option key={r._id} value={r._id}>{r.name} ({r.number})</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+      }
+    </div>
+  );
 
   return (
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>Bookings</h2>
-        <p style={styles.pageSub}>Manage approvals, room assignment, checkout and cancellation</p>
+        <p style={styles.pageSub}>Manage approvals, room assignment and cancellations</p>
       </div>
 
       <div style={styles.filterRow}>
@@ -300,35 +356,17 @@ export default function BookingsPage() {
 
       {/* Approve Modal */}
       {modal?.type === 'approve' && (
-        <Modal title="Approve & assign room" onClose={() => { setModal(null); setActionDone(false); }}>
+        <Modal title="Approve & assign room" onClose={closeModal}>
           {!actionDone ? (
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
               <InfoRow label="Unit" value={modal.booking.officer.unit} />
               <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
               <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
-              <div style={{ marginTop: 16 }}>
-                <label style={styles.label}>Assign room</label>
-                {availRooms.length === 0
-                  ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available.</p>
-                  : <select style={{ ...styles.input, marginTop: 6 }} value={formData.roomId}
-                      onChange={e => setFormData(f => ({ ...f, roomId: e.target.value }))}>
-                      <option value="">-- Select a room --</option>
-                      {[1, 2, 3].map(cat => {
-                        const catRooms = availRooms.filter(r => r.category === cat);
-                        if (catRooms.length === 0) return null;
-                        return (
-                          <optgroup key={cat} label={cat === 1 ? 'Category 1 — Up to Lt Col' : cat === 2 ? 'Category 2 — Colonel & Brigadier' : 'Category 3 — Brigadier & above'}>
-                            {catRooms.map(r => <option key={r._id} value={r._id}>{r.name} ({r.number})</option>)}
-                          </optgroup>
-                        );
-                      })}
-                    </select>
-                }
-              </div>
+              {roomDropdown(true)}
               <ModalActions>
-                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-                <button style={s.mBtn('blue')} onClick={doApprove} disabled={loading || !availRooms.length}>
+                <button style={s.mBtn('gray')} onClick={closeModal}>Cancel</button>
+                <button style={s.mBtn('blue')} onClick={doApprove} disabled={loading || !formData.roomId}>
                   {loading ? 'Saving…' : 'Approve & assign room'}
                 </button>
               </ModalActions>
@@ -336,9 +374,43 @@ export default function BookingsPage() {
           ) : (
             <>
               <div style={doneBox}>✅ Booking approved successfully!</div>
-              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <WhatsAppBox
+                mobile={modal.booking.officer.mobile}
+                message={modal.whatsappMsg}
+                onConfirmed={setMsgConfirmed}
+              />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+                <button style={s.mBtn('blue')} onClick={closeModal}>
+                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
+                </button>
+              </ModalActions>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* Edit Room Modal */}
+      {modal?.type === 'edit' && (
+        <Modal title="Edit room assignment" onClose={closeModal}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Current room" value={modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : 'Not assigned'} />
+              <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
+              <InfoRow label="Status" value={<Badge status={modal.booking.status} />} />
+              {roomDropdown(true)}
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={closeModal}>Cancel</button>
+                <button style={s.mBtn('blue')} onClick={doEdit} disabled={loading || !formData.roomId}>
+                  {loading ? 'Saving…' : 'Update room assignment'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Room assignment updated successfully!</div>
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={closeModal}>Done</button>
               </ModalActions>
             </>
           )}
@@ -347,14 +419,14 @@ export default function BookingsPage() {
 
       {/* Reject Modal */}
       {modal?.type === 'reject' && (
-        <Modal title="Reject booking" onClose={() => { setModal(null); setActionDone(false); }}>
+        <Modal title="Reject booking" onClose={closeModal}>
           {!actionDone ? (
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
               <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
               <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
               <ModalActions>
-                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                <button style={s.mBtn('gray')} onClick={closeModal}>Cancel</button>
                 <button style={s.mBtn('red')} onClick={doReject} disabled={loading}>
                   {loading ? 'Saving…' : 'Confirm rejection'}
                 </button>
@@ -363,79 +435,15 @@ export default function BookingsPage() {
           ) : (
             <>
               <div style={doneBox}>✅ Booking rejected.</div>
-              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <WhatsAppBox
+                mobile={modal.booking.officer.mobile}
+                message={modal.whatsappMsg}
+                onConfirmed={setMsgConfirmed}
+              />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
-              </ModalActions>
-            </>
-          )}
-        </Modal>
-      )}
-
-      {/* Checkin Modal */}
-      {modal?.type === 'checkin' && (
-        <Modal title="Check in officer" onClose={() => { setModal(null); setActionDone(false); }}>
-          {!actionDone ? (
-            <>
-              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
-              <InfoRow label="Room" value={modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '—'} />
-              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
-              <InfoRow label="Check-out" value={modal.booking.checkout} />
-              <ModalActions>
-                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-                <button style={s.mBtn('blue')} onClick={doCheckin} disabled={loading}>
-                  {loading ? 'Saving…' : 'Confirm check-in'}
+                <button style={s.mBtn('blue')} onClick={closeModal}>
+                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
                 </button>
-              </ModalActions>
-            </>
-          ) : (
-            <>
-              <div style={doneBox}>✅ Officer checked in successfully!</div>
-              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
-              <ModalActions>
-                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
-              </ModalActions>
-            </>
-          )}
-        </Modal>
-      )}
-
-      {/* Checkout Modal */}
-      {modal?.type === 'checkout' && (
-        <Modal title="Check out officer" onClose={() => { setModal(null); setActionDone(false); }}>
-          {!actionDone ? (
-            <>
-              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
-              <InfoRow label="Room" value={modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '—'} />
-              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
-              <InfoRow label="Scheduled checkout" value={modal.booking.checkout} />
-              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <label style={styles.label}>Actual checkout date</label>
-                  <input type="date" style={{ ...styles.input, marginTop: 6 }} value={formData.actualCheckout}
-                    onChange={e => setFormData(f => ({ ...f, actualCheckout: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={styles.label}>Notes (optional)</label>
-                  <textarea rows={2} style={{ ...styles.input, marginTop: 6, resize: 'vertical' }}
-                    placeholder="Any remarks…"
-                    value={formData.notes}
-                    onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))} />
-                </div>
-              </div>
-              <ModalActions>
-                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-                <button style={s.mBtn('blue')} onClick={doCheckout} disabled={loading}>
-                  {loading ? 'Saving…' : 'Confirm checkout'}
-                </button>
-              </ModalActions>
-            </>
-          ) : (
-            <>
-              <div style={doneBox}>✅ Officer checked out successfully!</div>
-              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
-              <ModalActions>
-                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
               </ModalActions>
             </>
           )}
@@ -444,7 +452,7 @@ export default function BookingsPage() {
 
       {/* Cancel Modal */}
       {modal?.type === 'cancel' && (
-        <Modal title="Cancel booking" onClose={() => { setModal(null); setActionDone(false); }}>
+        <Modal title="Cancel booking" onClose={closeModal}>
           {!actionDone ? (
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
@@ -459,7 +467,7 @@ export default function BookingsPage() {
                   onChange={e => setFormData(f => ({ ...f, cancelReason: e.target.value }))} />
               </div>
               <ModalActions>
-                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Go back</button>
+                <button style={s.mBtn('gray')} onClick={closeModal}>Go back</button>
                 <button style={s.mBtn('red')} onClick={doCancel} disabled={loading}>
                   {loading ? 'Saving…' : 'Confirm cancellation'}
                 </button>
@@ -468,17 +476,19 @@ export default function BookingsPage() {
           ) : (
             <>
               <div style={doneBox}>✅ Booking cancelled.</div>
-              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <WhatsAppBox
+                mobile={modal.booking.officer.mobile}
+                message={modal.whatsappMsg}
+                onConfirmed={setMsgConfirmed}
+              />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+                <button style={s.mBtn('blue')} onClick={closeModal}>
+                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
+                </button>
               </ModalActions>
             </>
           )}
         </Modal>
-      )}
-
-      {toast && (
-        <div style={styles.toast}>📱 {toast}</div>
       )}
     </div>
   );
@@ -506,10 +516,10 @@ function ModalActions({ children }) {
 const s = {
   abt: (color) => ({
     background: 'none',
-    border: `0.5px solid var(--${color === 'green' ? 'green' : color === 'red' ? 'red' : 'blue'})`,
+    border: `0.5px solid ${color === 'green' ? '#1D9E75' : color === 'red' ? '#E24B4A' : '#185FA5'}`,
     borderRadius: 'var(--radius-sm)',
     padding: '4px 10px', fontSize: 12,
-    color: `var(--${color === 'green' ? 'green' : color === 'red' ? 'red' : 'blue'})`,
+    color: color === 'green' ? '#1D9E75' : color === 'red' ? '#E24B4A' : '#185FA5',
     marginRight: 4, cursor: 'pointer', whiteSpace: 'nowrap',
   }),
   mBtn: (variant) => {
@@ -553,12 +563,5 @@ const styles = {
     display: 'block', width: '100%', padding: '8px 12px', fontSize: 13,
     border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-md)',
     background: 'var(--surface)', color: 'var(--text-1)', outline: 'none',
-  },
-  toast: {
-    position: 'fixed', bottom: 24, right: 24,
-    background: 'var(--green)', color: '#fff',
-    padding: '10px 18px', borderRadius: 'var(--radius-md)',
-    fontSize: 13, zIndex: 2000,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
   },
 };
