@@ -5,15 +5,110 @@ import Modal from '../components/Modal.jsx';
 
 const CAT_LABELS = { 1: 'Cat 1', 2: 'Cat 2', 3: 'Cat 3' };
 
+function WhatsAppBox({ mobile, message }) {
+  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [copiedNum, setCopiedNum] = useState(false);
+
+  const copyText = (text, setter) => {
+    navigator.clipboard.writeText(text);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
+  };
+
+  return (
+    <div style={ws.box}>
+      <div style={ws.header}>
+        <span style={ws.icon}>💬</span>
+        <span style={ws.title}>WhatsApp Message to send</span>
+      </div>
+
+      <div style={ws.field}>
+        <div style={ws.label}>Mobile Number</div>
+        <div style={ws.row}>
+          <div style={ws.value}>{mobile}</div>
+          <button style={ws.copyBtn} onClick={() => copyText(mobile, setCopiedNum)}>
+            {copiedNum ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      <div style={ws.field}>
+        <div style={ws.label}>Message</div>
+        <div style={ws.msgBox}>{message}</div>
+        <button style={ws.copyBtnFull} onClick={() => copyText(message, setCopiedMsg)}>
+          {copiedMsg ? '✓ Message Copied!' : '📋 Copy Message'}
+        </button>
+      </div>
+
+      <div style={ws.hint}>
+        Copy the number → open WhatsApp → paste number → send message
+      </div>
+    </div>
+  );
+}
+
+const ws = {
+  box: {
+    background: '#E7F5E9', border: '1px solid #A5D6A7',
+    borderRadius: 10, padding: '14px 16px', marginTop: 16,
+  },
+  header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
+  icon: { fontSize: 20 },
+  title: { fontSize: 13, fontWeight: 600, color: '#2E7D32' },
+  field: { marginBottom: 10 },
+  label: { fontSize: 11, fontWeight: 600, color: '#388E3C', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' },
+  row: { display: 'flex', alignItems: 'center', gap: 8 },
+  value: { fontSize: 14, fontWeight: 500, color: '#1A1917', flex: 1, background: '#fff', padding: '6px 10px', borderRadius: 6 },
+  msgBox: {
+    fontSize: 13, color: '#1A1917', background: '#fff',
+    padding: '10px 12px', borderRadius: 6, lineHeight: 1.6,
+    border: '0.5px solid #C8E6C9', whiteSpace: 'pre-wrap',
+  },
+  copyBtn: {
+    background: '#2E7D32', color: '#fff', border: 'none',
+    borderRadius: 6, padding: '6px 12px', fontSize: 12,
+    cursor: 'pointer', whiteSpace: 'nowrap',
+  },
+  copyBtnFull: {
+    marginTop: 8, width: '100%', background: '#2E7D32', color: '#fff',
+    border: 'none', borderRadius: 6, padding: '8px', fontSize: 13,
+    cursor: 'pointer', fontWeight: 500,
+  },
+  hint: {
+    fontSize: 10, color: '#558B2F', marginTop: 8,
+    borderTop: '0.5px solid #C8E6C9', paddingTop: 8, textAlign: 'center',
+  },
+};
+
+function buildMessage(type, booking, roomName) {
+  const name = `${booking.officer.rank} ${booking.officer.name}`;
+  const ref = booking.ref;
+  switch (type) {
+    case 'approve':
+      return `Dear ${name},\n\nYour booking ${ref} has been APPROVED.\nRoom assigned: ${roomName}\nCheck-in: ${booking.checkin}\nCheck-out: ${booking.checkout}\n\nPlease report to the Guest House reception on check-in date.\n\nOfficers' Guest House`;
+    case 'reject':
+      return `Dear ${name},\n\nYour booking ${ref} has been REJECTED.\n\nPlease contact the Guest House office for further details.\n\nOfficers' Guest House`;
+    case 'checkin':
+      return `Dear ${name},\n\nWelcome! You have been checked in to Room ${roomName}.\n\nScheduled Check-out: ${booking.checkout}\n\nWe hope you have a comfortable stay.\n\nOfficers' Guest House`;
+    case 'checkout':
+      return `Dear ${name},\n\nYou have been checked out of Room ${roomName}.\n\nThank you for staying at the Officers' Guest House. We hope to see you again.\n\nOfficers' Guest House`;
+    case 'cancel':
+      return `Dear ${name},\n\nYour booking ${ref} has been CANCELLED.\n\nReason: ${booking.cancelReason}\n\nFor further queries please contact the Guest House office.\n\nOfficers' Guest House`;
+    default:
+      return '';
+  }
+}
+
 export default function BookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterCat,    setFilterCat]    = useState('');
-  const [modal, setModal] = useState(null); // { type, booking }
+  const [filterCat, setFilterCat] = useState('');
+  const [modal, setModal] = useState(null);
   const [availRooms, setAvailRooms] = useState([]);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
+  const [actionDone, setActionDone] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -23,7 +118,7 @@ export default function BookingsPage() {
   const load = () => {
     const params = new URLSearchParams();
     if (filterStatus) params.set('status', filterStatus);
-    if (filterCat)    params.set('category', filterCat);
+    if (filterCat) params.set('category', filterCat);
     api.get('/bookings?' + params).then(setBookings).catch(console.error);
   };
 
@@ -33,26 +128,60 @@ export default function BookingsPage() {
     const rooms = await api.get('/rooms/available/all');
     setAvailRooms(rooms);
     setFormData({ roomId: rooms[0]?._id || '' });
+    setActionDone(false);
     setModal({ type: 'approve', booking });
   };
 
   const doApprove = async () => {
+    if (!formData.roomId) return alert('Please select a room.');
     setLoading(true);
     try {
-      await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
-      showToast('Booking approved. SMS sent.');
-      setModal(null); load();
+      const updated = await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
+      const selectedRoom = availRooms.find(r => r._id === formData.roomId);
+      const roomName = selectedRoom ? `${selectedRoom.name} (${selectedRoom.number})` : '';
+      const msg = buildMessage('approve', { ...modal.booking, checkin: modal.booking.checkin, checkout: modal.booking.checkout }, roomName);
+      setModal(m => ({ ...m, whatsappMsg: msg, roomName, done: true }));
+      setActionDone(true);
+      load();
     } finally { setLoading(false); }
   };
 
-  const doCheckin = async (booking) => {
-    await api.patch(`/bookings/${booking._id}/checkin`);
-    showToast('Checked in. SMS sent.');
-    load();
+  const openReject = (booking) => {
+    setActionDone(false);
+    setModal({ type: 'reject', booking });
+  };
+
+  const doReject = async () => {
+    setLoading(true);
+    try {
+      await api.patch(`/bookings/${modal.booking._id}/reject`);
+      const msg = buildMessage('reject', modal.booking, '');
+      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
+      setActionDone(true);
+      load();
+    } finally { setLoading(false); }
+  };
+
+  const openCheckin = (booking) => {
+    setActionDone(false);
+    setModal({ type: 'checkin', booking });
+  };
+
+  const doCheckin = async () => {
+    setLoading(true);
+    try {
+      await api.patch(`/bookings/${modal.booking._id}/checkin`);
+      const roomName = modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '';
+      const msg = buildMessage('checkin', modal.booking, roomName);
+      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
+      setActionDone(true);
+      load();
+    } finally { setLoading(false); }
   };
 
   const openCheckout = (booking) => {
     setFormData({ actualCheckout: booking.checkout, notes: '' });
+    setActionDone(false);
     setModal({ type: 'checkout', booking });
   };
 
@@ -60,13 +189,17 @@ export default function BookingsPage() {
     setLoading(true);
     try {
       await api.patch(`/bookings/${modal.booking._id}/checkout`, formData);
-      showToast('Checked out. Room released. SMS sent.');
-      setModal(null); load();
+      const roomName = modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '';
+      const msg = buildMessage('checkout', modal.booking, roomName);
+      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
+      setActionDone(true);
+      load();
     } finally { setLoading(false); }
   };
 
   const openCancel = (booking) => {
     setFormData({ cancelReason: '' });
+    setActionDone(false);
     setModal({ type: 'cancel', booking });
   };
 
@@ -75,8 +208,11 @@ export default function BookingsPage() {
     setLoading(true);
     try {
       await api.patch(`/bookings/${modal.booking._id}/cancel`, { cancelReason: formData.cancelReason });
-      showToast('Booking cancelled. SMS sent.');
-      setModal(null); load();
+      const bookingWithReason = { ...modal.booking, cancelReason: formData.cancelReason };
+      const msg = buildMessage('cancel', bookingWithReason, '');
+      setModal(m => ({ ...m, whatsappMsg: msg, done: true }));
+      setActionDone(true);
+      load();
     } finally { setLoading(false); }
   };
 
@@ -84,19 +220,20 @@ export default function BookingsPage() {
     if (b.status === 'Pending') return (
       <>
         <button style={s.abt('green')} onClick={() => openApprove(b)}>Approve &amp; assign room</button>
-        <button style={s.abt('red')}   onClick={() => openCancel(b)}>Cancel</button>
+        <button style={s.abt('red')} onClick={() => openReject(b)}>Reject</button>
+        <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
       </>
     );
     if (b.status === 'Approved') return (
       <>
-        <button style={s.abt('blue')} onClick={() => doCheckin(b)}>Check in</button>
-        <button style={s.abt('red')}  onClick={() => openCancel(b)}>Cancel</button>
+        <button style={s.abt('blue')} onClick={() => openCheckin(b)}>Check in</button>
+        <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
       </>
     );
     if (b.status === 'Checked In') return (
       <>
         <button style={s.abt('blue')} onClick={() => openCheckout(b)}>Check out</button>
-        <button style={s.abt('red')}  onClick={() => openCancel(b)}>Cancel / early checkout</button>
+        <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
       </>
     );
     return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>;
@@ -112,15 +249,15 @@ export default function BookingsPage() {
       <div style={styles.filterRow}>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.sel}>
           <option value="">All statuses</option>
-          {['Pending','Approved','Checked In','Checked Out','Cancelled','Rejected'].map(s => (
+          {['Pending', 'Approved', 'Checked In', 'Checked Out', 'Cancelled', 'Rejected'].map(s => (
             <option key={s}>{s}</option>
           ))}
         </select>
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={styles.sel}>
           <option value="">All categories</option>
           <option value="1">Category 1 — Up to Lt Col</option>
-          <option value="2">Category 2 — Colonel & Brigadier</option>
-          <option value="3">Category 3 — Colonel &amp; above</option>
+          <option value="2">Category 2 — Colonel &amp; Brigadier</option>
+          <option value="3">Category 3 — Brigadier &amp; above</option>
         </select>
       </div>
 
@@ -128,7 +265,7 @@ export default function BookingsPage() {
         <table style={styles.table}>
           <thead>
             <tr>
-              {['Ref','Officer','Rank / Unit','Cat','Room','Check-in','Check-out','Status','Actions'].map(h => (
+              {['Ref', 'Officer', 'Rank / Unit', 'Cat', 'Room', 'Check-in', 'Check-out', 'Status', 'Actions'].map(h => (
                 <th key={h} style={styles.th}>{h}</th>
               ))}
             </tr>
@@ -142,14 +279,18 @@ export default function BookingsPage() {
                   {b.officer.rank}<br />{b.officer.unit}
                 </td>
                 <td style={styles.td}>
-                  <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 99,
-                    background: ['','var(--blue-bg)','var(--amber-bg)','var(--green-bg)'][b.category],
-                    color: ['','var(--blue-text)','var(--amber-text)','var(--green-text)'][b.category] }}>
+                  <span style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 99,
+                    background: ['', 'var(--blue-bg)', 'var(--amber-bg)', 'var(--green-bg)'][b.category],
+                    color: ['', 'var(--blue-text)', 'var(--amber-text)', 'var(--green-text)'][b.category],
+                  }}>
                     {CAT_LABELS[b.category]}
                   </span>
                 </td>
                 <td style={{ ...styles.td, fontSize: 13 }}>
-                  {b.room?.number || <span style={{ color: 'var(--text-3)', fontSize: 12 }}>Not assigned</span>}
+                  {b.room
+                    ? <span><strong>{b.room.name}</strong> <span style={{ color: 'var(--text-3)', fontSize: 11 }}>({b.room.number})</span></span>
+                    : <span style={{ color: 'var(--text-3)', fontSize: 12 }}>Not assigned</span>}
                 </td>
                 <td style={{ ...styles.td, fontSize: 12, color: 'var(--text-2)' }}>{b.checkin}</td>
                 <td style={{ ...styles.td, fontSize: 12, color: 'var(--text-2)' }}>{b.actualCheckout || b.checkout}</td>
@@ -166,103 +307,199 @@ export default function BookingsPage() {
 
       {/* Approve Modal */}
       {modal?.type === 'approve' && (
-        <Modal title="Approve & assign room" onClose={() => setModal(null)}>
-          <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
-          <InfoRow label="Unit"    value={modal.booking.officer.unit} />
-          <InfoRow label="Stay"    value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
-          <div style={{ marginTop: 16 }}>
-            <label style={styles.label}>Assign room</label>
-            {availRooms.length === 0
-              ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available.</p>
-              : <select style={{ ...styles.input, marginTop: 6 }} value={formData.roomId}
-                  onChange={e => setFormData(f => ({ ...f, roomId: e.target.value }))}>
-                  <option value="">-- Select a room --</option>
-                  {[1,2,3].map(cat => {
-                    const catRooms = availRooms.filter(r => r.category === cat);
-                    if (catRooms.length === 0) return null;
-                    return (
-                      <optgroup key={cat} label={cat === 1 ? 'Category 1 — Up to Lt Col' : cat === 2 ? 'Category 2 — Colonel & Brigadier' : 'Category 3 — Brigadier & above'}>
-                      {catRooms.map(r => <option key={r._id} value={r._id}>{r.name} ({r.number})</option>)}
-                      </optgroup>
-                      );
-                     })}
-                   </select>
+        <Modal title="Approve & assign room" onClose={() => { setModal(null); setActionDone(false); }}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Unit" value={modal.booking.officer.unit} />
+              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
+              <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
+              <div style={{ marginTop: 16 }}>
+                <label style={styles.label}>Assign room</label>
+                {availRooms.length === 0
+                  ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available.</p>
+                  : <select style={{ ...styles.input, marginTop: 6 }} value={formData.roomId}
+                      onChange={e => setFormData(f => ({ ...f, roomId: e.target.value }))}>
+                      <option value="">-- Select a room --</option>
+                      {[1, 2, 3].map(cat => {
+                        const catRooms = availRooms.filter(r => r.category === cat);
+                        if (catRooms.length === 0) return null;
+                        return (
+                          <optgroup key={cat} label={cat === 1 ? 'Category 1 — Up to Lt Col' : cat === 2 ? 'Category 2 — Colonel & Brigadier' : 'Category 3 — Brigadier & above'}>
+                            {catRooms.map(r => <option key={r._id} value={r._id}>{r.name} ({r.number})</option>)}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
                 }
-          </div>
-          <ModalActions>
-            <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-            <button style={s.mBtn('blue')} onClick={doApprove} disabled={loading || !availRooms.length}>
-              {loading ? 'Saving…' : 'Approve & send SMS'}
-            </button>
-          </ModalActions>
+              </div>
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                <button style={s.mBtn('blue')} onClick={doApprove} disabled={loading || !availRooms.length}>
+                  {loading ? 'Saving…' : 'Approve & assign room'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Booking approved successfully!</div>
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+              </ModalActions>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* Reject Modal */}
+      {modal?.type === 'reject' && (
+        <Modal title="Reject booking" onClose={() => { setModal(null); setActionDone(false); }}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
+              <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                <button style={s.mBtn('red')} onClick={doReject} disabled={loading}>
+                  {loading ? 'Saving…' : 'Confirm rejection'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Booking rejected.</div>
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+              </ModalActions>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* Checkin Modal */}
+      {modal?.type === 'checkin' && (
+        <Modal title="Check in officer" onClose={() => { setModal(null); setActionDone(false); }}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Room" value={modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '—'} />
+              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
+              <InfoRow label="Check-out" value={modal.booking.checkout} />
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                <button style={s.mBtn('blue')} onClick={doCheckin} disabled={loading}>
+                  {loading ? 'Saving…' : 'Confirm check-in'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Officer checked in successfully!</div>
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+              </ModalActions>
+            </>
+          )}
         </Modal>
       )}
 
       {/* Checkout Modal */}
       {modal?.type === 'checkout' && (
-        <Modal title="Check out officer" onClose={() => setModal(null)}>
-          <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
-          <InfoRow label="Room"    value={modal.booking.room?.number || '—'} />
-          <InfoRow label="Scheduled checkout" value={modal.booking.checkout} />
-          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <label style={styles.label}>Actual checkout date</label>
-              <input type="date" style={{ ...styles.input, marginTop: 6 }} value={formData.actualCheckout}
-                onChange={e => setFormData(f => ({ ...f, actualCheckout: e.target.value }))} />
-            </div>
-            <div>
-              <label style={styles.label}>Notes (optional)</label>
-              <textarea rows={2} style={{ ...styles.input, marginTop: 6, resize: 'vertical' }}
-                placeholder="Any remarks…"
-                value={formData.notes}
-                onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))} />
-            </div>
-          </div>
-          <ModalActions>
-            <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
-            <button style={s.mBtn('blue')} onClick={doCheckout} disabled={loading}>
-              {loading ? 'Saving…' : 'Confirm checkout & send SMS'}
-            </button>
-          </ModalActions>
+        <Modal title="Check out officer" onClose={() => { setModal(null); setActionDone(false); }}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Room" value={modal.booking.room ? `${modal.booking.room.name} (${modal.booking.room.number})` : '—'} />
+              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
+              <InfoRow label="Scheduled checkout" value={modal.booking.checkout} />
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={styles.label}>Actual checkout date</label>
+                  <input type="date" style={{ ...styles.input, marginTop: 6 }} value={formData.actualCheckout}
+                    onChange={e => setFormData(f => ({ ...f, actualCheckout: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={styles.label}>Notes (optional)</label>
+                  <textarea rows={2} style={{ ...styles.input, marginTop: 6, resize: 'vertical' }}
+                    placeholder="Any remarks…"
+                    value={formData.notes}
+                    onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+              </div>
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
+                <button style={s.mBtn('blue')} onClick={doCheckout} disabled={loading}>
+                  {loading ? 'Saving…' : 'Confirm checkout'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Officer checked out successfully!</div>
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+              </ModalActions>
+            </>
+          )}
         </Modal>
       )}
 
       {/* Cancel Modal */}
       {modal?.type === 'cancel' && (
-        <Modal title="Cancel booking" onClose={() => setModal(null)}>
-          <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
-          <InfoRow label="Status"  value={<Badge status={modal.booking.status} />} />
-          {modal.booking.room && <InfoRow label="Room" value={`${modal.booking.room?.number} — will be released`} />}
-          <div style={{ marginTop: 16 }}>
-            <label style={styles.label}>Reason for cancellation (required)</label>
-            <textarea rows={3} style={{ ...styles.input, marginTop: 6, resize: 'vertical' }}
-              placeholder="e.g. Officer posted out, travel plans changed…"
-              value={formData.cancelReason}
-              onChange={e => setFormData(f => ({ ...f, cancelReason: e.target.value }))} />
-          </div>
-          <ModalActions>
-            <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Go back</button>
-            <button style={s.mBtn('red')} onClick={doCancel} disabled={loading}>
-              {loading ? 'Saving…' : 'Confirm cancellation & send SMS'}
-            </button>
-          </ModalActions>
+        <Modal title="Cancel booking" onClose={() => { setModal(null); setActionDone(false); }}>
+          {!actionDone ? (
+            <>
+              <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
+              <InfoRow label="Status" value={<Badge status={modal.booking.status} />} />
+              {modal.booking.room && <InfoRow label="Room" value={`${modal.booking.room?.name} — will be released`} />}
+              <div style={{ marginTop: 16 }}>
+                <label style={styles.label}>Reason for cancellation (required)</label>
+                <textarea rows={3} style={{ ...styles.input, marginTop: 6, resize: 'vertical' }}
+                  placeholder="e.g. Officer posted out, travel plans changed…"
+                  value={formData.cancelReason}
+                  onChange={e => setFormData(f => ({ ...f, cancelReason: e.target.value }))} />
+              </div>
+              <ModalActions>
+                <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Go back</button>
+                <button style={s.mBtn('red')} onClick={doCancel} disabled={loading}>
+                  {loading ? 'Saving…' : 'Confirm cancellation'}
+                </button>
+              </ModalActions>
+            </>
+          ) : (
+            <>
+              <div style={doneBox}>✅ Booking cancelled.</div>
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} />
+              <ModalActions>
+                <button style={s.mBtn('blue')} onClick={() => { setModal(null); setActionDone(false); }}>Done</button>
+              </ModalActions>
+            </>
+          )}
         </Modal>
       )}
 
-      {/* SMS Toast */}
       {toast && (
-        <div style={styles.toast}>
-          📱 {toast}
-        </div>
+        <div style={styles.toast}>📱 {toast}</div>
       )}
     </div>
   );
 }
 
+const doneBox = {
+  background: '#EAF3DE', border: '0.5px solid #97C459',
+  borderRadius: 8, padding: '10px 14px',
+  fontSize: 13, color: '#3B6D11', marginBottom: 4,
+};
+
 function InfoRow({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0',
-      borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
       <span style={{ color: 'var(--text-2)' }}>{label}</span>
       <span>{value}</span>
     </div>
@@ -278,18 +515,14 @@ const s = {
     background: 'none',
     border: `0.5px solid var(--${color === 'green' ? 'green' : color === 'red' ? 'red' : 'blue'})`,
     borderRadius: 'var(--radius-sm)',
-    padding: '4px 10px',
-    fontSize: 12,
+    padding: '4px 10px', fontSize: 12,
     color: `var(--${color === 'green' ? 'green' : color === 'red' ? 'red' : 'blue'})`,
-    marginRight: 4,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    whiteSpace: 'nowrap',
+    marginRight: 4, cursor: 'pointer', whiteSpace: 'nowrap',
   }),
   mBtn: (variant) => {
     const map = {
-      blue: { bg: 'var(--blue)',    color: '#fff' },
-      red:  { bg: 'var(--red)',     color: '#fff' },
+      blue: { bg: 'var(--blue)', color: '#fff' },
+      red: { bg: 'var(--red)', color: '#fff' },
       gray: { bg: 'var(--surface)', color: 'var(--text-1)', border: '0.5px solid var(--border-md)' },
     };
     const v = map[variant] || map.gray;
@@ -303,9 +536,9 @@ const s = {
 
 const styles = {
   pageHeader: { marginBottom: 20 },
-  pageTitle:  { fontSize: 22, fontWeight: 500, color: 'var(--text-1)' },
-  pageSub:    { fontSize: 13, color: 'var(--text-3)', marginTop: 4 },
-  filterRow:  { display: 'flex', gap: 8, marginBottom: 16 },
+  pageTitle: { fontSize: 22, fontWeight: 500, color: 'var(--text-1)' },
+  pageSub: { fontSize: 13, color: 'var(--text-3)', marginTop: 4 },
+  filterRow: { display: 'flex', gap: 8, marginBottom: 16 },
   sel: {
     fontSize: 13, padding: '7px 10px',
     border: '0.5px solid var(--border-md)',
