@@ -138,22 +138,15 @@ export default function RoomsPage() {
     if (Object.keys(errs).length > 0) return;
     setFormLoading(true);
     try {
-      // Step 1: Cancel existing booking
       if (modal.info.booking) {
         await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
           cancelReason: `Room reassigned to ${form.name} by admin`,
         });
       }
-
-      // Step 2: Release room explicitly
       await api.patch(`/rooms/${modal.room._id}`, {
         status: 'available', currentGuest: null, currentBooking: null,
       });
-
-      // Step 3: Wait briefly for DB to settle
       await new Promise(r => setTimeout(r, 600));
-
-      // Step 4: Create new booking
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
       const newBooking = await api.post('/bookings', {
         officer: {
@@ -166,10 +159,7 @@ export default function RoomsPage() {
         checkin: form.checkin,
         checkout: form.checkout,
       });
-
-      // Step 5: Approve with room
       await api.patch(`/bookings/${newBooking._id}/approve`, { roomId: modal.room._id });
-
       setSuccess(`✅ ${modal.room.name} reassigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
       load();
     } catch (err) {
@@ -341,7 +331,6 @@ export default function RoomsPage() {
         </div>
       ))}
 
-      {/* Room Management Modal */}
       {modal && (
         <Modal
           title={`${modal.room.name} (${modal.room.number})`}
