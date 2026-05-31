@@ -66,6 +66,20 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     const room = await Room.findById(roomId);
     if (!room) return res.status(400).json({ message: 'Room not found' });
 
+    // Check for date conflicts
+    const conflict = await Booking.findOne({
+      room: roomId,
+      status: { $in: ['Approved', 'Checked In'] },
+      checkin: { $lt: booking.checkout },
+      checkout: { $gt: booking.checkin },
+    });
+
+    if (conflict) {
+      return res.status(400).json({
+        message: `This room is already booked from ${conflict.checkin} to ${conflict.checkout} for ${conflict.officer.name}. Please select a different room.`
+      });
+    }
+
     booking.status = 'Approved';
     booking.room   = room._id;
     await booking.save();
@@ -132,7 +146,7 @@ router.patch('/:id/checkout', requireAuth, async (req, res) => {
     if (booking.status !== 'Checked In')
       return res.status(400).json({ message: 'Only checked-in bookings can be checked out' });
 
-    booking.status        = 'Checked Out';
+    booking.status         = 'Checked Out';
     booking.actualCheckout = actualCheckout || booking.checkout;
     if (notes) booking.notes = notes;
     await booking.save();
