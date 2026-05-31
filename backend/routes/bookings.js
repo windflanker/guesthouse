@@ -8,6 +8,7 @@ import {
 
 const router = Router();
 
+// POST /api/bookings
 router.post('/', async (req, res) => {
   try {
     const { officer, category, checkin, checkout } = req.body;
@@ -21,6 +22,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET /api/bookings
 router.get('/', requireAuth, async (req, res) => {
   try {
     const filter = {};
@@ -35,6 +37,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/bookings/:id
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id).populate('room');
@@ -45,6 +48,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/approve
 router.patch('/:id/approve', requireAuth, async (req, res) => {
   try {
     const { roomId } = req.body;
@@ -58,11 +62,13 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     const room = await Room.findById(roomId);
     if (!room) return res.status(400).json({ message: 'Room not found' });
 
+    // Check for date conflicts — exclude current booking
     const conflict = await Booking.findOne({
       room: roomId,
       status: { $in: ['Approved', 'Checked In'] },
       checkin: { $lt: booking.checkout },
       checkout: { $gt: booking.checkin },
+      _id: { $ne: booking._id },
     });
 
     if (conflict) {
@@ -89,6 +95,7 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/reject
 router.patch('/:id/reject', requireAuth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -105,6 +112,7 @@ router.patch('/:id/reject', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/checkin
 router.patch('/:id/checkin', requireAuth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id).populate('room');
@@ -126,6 +134,7 @@ router.patch('/:id/checkin', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/checkout
 router.patch('/:id/checkout', requireAuth, async (req, res) => {
   try {
     const { actualCheckout, notes } = req.body;
@@ -152,6 +161,7 @@ router.patch('/:id/checkout', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/cancel
 router.patch('/:id/cancel', requireAuth, async (req, res) => {
   try {
     const { cancelReason } = req.body;
