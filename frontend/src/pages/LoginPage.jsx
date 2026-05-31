@@ -15,8 +15,12 @@ export default function LoginPage() {
     setLoading(true); setError('');
     try {
       const data = await api.post('/auth/login', form);
-      login(data.token, data.username);
-      navigate('/admin');
+      login(data.token, data.username, data.role);
+      if (data.role === 'manager') {
+        navigate('/manager');
+      } else {
+        navigate('/admin');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -29,7 +33,7 @@ export default function LoginPage() {
       <div style={s.card}>
         <img src="/logo.jpeg" alt="Logo" style={s.logo} />
         <h1 style={s.heading}>Guest Room Booking</h1>
-        <p style={s.sub}>Admin Login</p>
+        <p style={s.sub}>Login</p>
         <div style={s.divider} />
 
         <form onSubmit={handleSubmit} style={s.form}>
@@ -62,16 +66,8 @@ export default function LoginPage() {
 }
 
 const s = {
-  page: {
-    minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-  },
-  card: {
-    background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)',
-    borderRadius: 20, padding: '40px 44px', width: 400,
-    boxShadow: '0 8px 40px rgba(0,0,0,0.08)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-  },
+  page: { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  card: { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '40px 44px', width: 400, boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   logo: { width: 80, height: 80, objectFit: 'contain', marginBottom: 12 },
   heading: { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4 },
   sub: { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
