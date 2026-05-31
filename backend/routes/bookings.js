@@ -62,7 +62,6 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
     const room = await Room.findById(roomId);
     if (!room) return res.status(400).json({ message: 'Room not found' });
 
-    // Check for date conflicts — exclude current booking
     const conflict = await Booking.findOne({
       room: roomId,
       status: { $in: ['Approved', 'Checked In'] },
