@@ -23,7 +23,7 @@ const RANKS = [
 
 const BORDER = { available: '#1D9E75', pending: '#EF9F27', occupied: '#E24B4A' };
 
-function toDateStr(date) { return date.toISOString().split('T')[0]; }
+function toDateStr(d) { return d.toISOString().split('T')[0]; }
 
 const emptyForm = {
   name: '', rank: '', unit: '', mobile: '', email: '',
@@ -31,17 +31,17 @@ const emptyForm = {
 };
 
 export default function RoomsPage() {
-  const [rooms, setRooms]       = useState([]);
-  const [bookings, setBookings] = useState([]);
+  const [rooms, setRooms]         = useState([]);
+  const [bookings, setBookings]   = useState([]);
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [editing, setEditing]   = useState(null);
-  const [saving, setSaving]     = useState(false);
-  const [modal, setModal]       = useState(null);
-  const [modalMode, setModalMode] = useState('assign'); // 'assign' | 'reassign' | 'vacate-confirm'
-  const [form, setForm]         = useState(emptyForm);
+  const [editing, setEditing]     = useState(null);
+  const [saving, setSaving]       = useState(false);
+  const [modal, setModal]         = useState(null);
+  const [modalMode, setModalMode] = useState('assign');
+  const [form, setForm]           = useState(emptyForm);
   const [formLoading, setFormLoading] = useState(false);
-  const [success, setSuccess]   = useState('');
-  const [errors, setErrors]     = useState({});
+  const [success, setSuccess]     = useState('');
+  const [errors, setErrors]       = useState({});
 
   const load = async () => {
     const [r, b] = await Promise.all([
@@ -54,14 +54,21 @@ export default function RoomsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const getRoomStatusOnDate = (room) => {
+  const getRoomInfo = (room) => {
     const date = selectedDate;
     const booking = bookings.find(b =>
       b.room?._id === room._id &&
       ['Approved', 'Checked In'].includes(b.status) &&
       b.checkin <= date && b.checkout >= date
     );
-    if (booking) return { status: 'occupied', guest: booking.officer.name, checkin: booking.checkin, checkout: booking.checkout, booking };
+    if (booking) return {
+      status: 'occupied',
+      guest: booking.officer.name,
+      rank: booking.officer.rank,
+      checkin: booking.checkin,
+      checkout: booking.checkout,
+      booking,
+    };
     return { status: 'available', guest: null, booking: null };
   };
 
@@ -74,7 +81,7 @@ export default function RoomsPage() {
   };
 
   const openModal = (room) => {
-    const info = getRoomStatusOnDate(room);
+    const info = getRoomInfo(room);
     setForm({ ...emptyForm, checkin: selectedDate });
     setErrors({});
     setSuccess('');
@@ -86,14 +93,14 @@ export default function RoomsPage() {
 
   const validate = () => {
     const errs = {};
-    if (!form.name.trim())     errs.name     = 'Required';
-    if (!form.rank)            errs.rank     = 'Required';
-    if (!form.unit.trim())     errs.unit     = 'Required';
-    if (!form.mobile.trim())   errs.mobile   = 'Required';
+    if (!form.name.trim())   errs.name     = 'Required';
+    if (!form.rank)          errs.rank     = 'Required';
+    if (!form.unit.trim())   errs.unit     = 'Required';
+    if (!form.mobile.trim()) errs.mobile   = 'Required';
     if (!/^\d{10}$/.test(form.mobile)) errs.mobile = 'Must be 10 digits';
-    if (!form.checkin)         errs.checkin  = 'Required';
-    if (!form.checkout)        errs.checkout = 'Required';
-    if (!form.arrivalTime)     errs.arrivalTime = 'Required';
+    if (!form.checkin)       errs.checkin  = 'Required';
+    if (!form.checkout)      errs.checkout = 'Required';
+    if (!form.arrivalTime)   errs.arrivalTime = 'Required';
     if (form.checkin && form.checkout && form.checkout <= form.checkin)
       errs.checkout = 'Must be after check-in';
     return errs;
@@ -131,15 +138,24 @@ export default function RoomsPage() {
     if (Object.keys(errs).length > 0) return;
     setFormLoading(true);
     try {
-      // Cancel existing booking first
+      // Step 1: Cancel existing booking
       if (modal.info.booking) {
         await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
           cancelReason: `Room reassigned to ${form.name} by admin`,
         });
       }
-      // Create new booking and approve
+
+      // Step 2: Release room explicitly
+      await api.patch(`/rooms/${modal.room._id}`, {
+        status: 'available', currentGuest: null, currentBooking: null,
+      });
+
+      // Step 3: Wait briefly for DB to settle
+      await new Promise(r => setTimeout(r, 600));
+
+      // Step 4: Create new booking
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
-      const booking = await api.post('/bookings', {
+      const newBooking = await api.post('/bookings', {
         officer: {
           name: form.name, rank: form.rank, unit: form.unit,
           mobile: form.mobile, email: form.email,
@@ -150,7 +166,10 @@ export default function RoomsPage() {
         checkin: form.checkin,
         checkout: form.checkout,
       });
-      await api.patch(`/bookings/${booking._id}/approve`, { roomId: modal.room._id });
+
+      // Step 5: Approve with room
+      await api.patch(`/bookings/${newBooking._id}/approve`, { roomId: modal.room._id });
+
       setSuccess(`✅ ${modal.room.name} reassigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
       load();
     } catch (err) {
@@ -177,7 +196,7 @@ export default function RoomsPage() {
   };
 
   const isToday = selectedDate === toDateStr(new Date());
-  const availableCount = rooms.filter(r => getRoomStatusOnDate(r).status === 'available').length;
+  const availCount = rooms.filter(r => getRoomInfo(r).status === 'available').length;
 
   const bookingForm = (onSubmit, submitLabel) => (
     <>
@@ -252,7 +271,7 @@ export default function RoomsPage() {
         {!isToday && (
           <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>
         )}
-        <div style={s.dateSummary}>{availableCount} of {rooms.length} rooms available</div>
+        <div style={s.dateSummary}>{availCount} of {rooms.length} rooms available</div>
       </div>
 
       <div style={s.legend}>
@@ -275,12 +294,12 @@ export default function RoomsPage() {
               {rooms.filter(r => r.category === cat).length} rooms
             </span>
             <span style={{ ...s.catTag, background: '#EAF3DE', color: '#3B6D11', marginLeft: 4 }}>
-              {rooms.filter(r => r.category === cat && getRoomStatusOnDate(r).status === 'available').length} available
+              {rooms.filter(r => r.category === cat && getRoomInfo(r).status === 'available').length} available
             </span>
           </div>
           <div style={s.grid}>
             {rooms.filter(r => r.category === cat).map(room => {
-              const info = getRoomStatusOnDate(room);
+              const info = getRoomInfo(room);
               return (
                 <div key={room._id}
                   style={{ ...s.roomCard, borderLeft: `3px solid ${BORDER[info.status] || '#9A9895'}`, cursor: 'pointer' }}
@@ -307,7 +326,7 @@ export default function RoomsPage() {
 
                   {info.status === 'occupied' ? (
                     <div style={s.occupiedInfo}>
-                      <div style={{ fontWeight: 500, fontSize: 12 }}>{info.guest}</div>
+                      <div style={{ fontWeight: 500, fontSize: 12 }}>{info.rank} {info.guest}</div>
                       <div style={{ fontSize: 11, color: '#5A5855', marginTop: 2 }}>{info.checkin} → {info.checkout}</div>
                     </div>
                   ) : (
@@ -337,7 +356,6 @@ export default function RoomsPage() {
             </>
           ) : (
             <>
-              {/* Room info */}
               <div style={fs.roomInfo}>
                 <span style={{ ...fs.catTag, background: CAT[modal.room.category].bg, color: CAT[modal.room.category].text }}>
                   {CAT[modal.room.category].label}
@@ -345,12 +363,11 @@ export default function RoomsPage() {
                 <Badge status={modal.info.status} />
                 {modal.info.guest && (
                   <span style={{ fontSize: 13, color: '#5A5855' }}>
-                    Currently: <strong>{modal.info.guest}</strong> ({modal.info.checkin} → {modal.info.checkout})
+                    Currently: <strong>{modal.info.rank} {modal.info.guest}</strong> ({modal.info.checkin} → {modal.info.checkout})
                   </span>
                 )}
               </div>
 
-              {/* Action tabs */}
               <div style={fs.tabs}>
                 {modal.info.status === 'available' ? (
                   <div style={fs.tabActive}>Assign to Guest</div>
@@ -362,7 +379,9 @@ export default function RoomsPage() {
                       Reassign to New Guest
                     </div>
                     <div
-                      style={modalMode === 'vacate-confirm' ? { ...fs.tabActive, background: '#FCEBEB', color: '#A32D2D', borderColor: '#E24B4A' } : { ...fs.tab, color: '#A32D2D' }}
+                      style={modalMode === 'vacate-confirm'
+                        ? { ...fs.tabActive, background: '#FCEBEB', color: '#A32D2D', borderColor: '#E24B4A' }
+                        : { ...fs.tab, color: '#A32D2D' }}
                       onClick={() => { setModalMode('vacate-confirm'); setErrors({}); }}>
                       Make Vacant
                     </div>
@@ -370,7 +389,6 @@ export default function RoomsPage() {
                 )}
               </div>
 
-              {/* Assign form */}
               {(modal.info.status === 'available' || modalMode === 'reassign') &&
                 bookingForm(
                   modal.info.status === 'available' ? handleAssign : handleReassign,
@@ -380,11 +398,10 @@ export default function RoomsPage() {
                 )
               }
 
-              {/* Vacate confirmation */}
               {modal.info.status !== 'available' && modalMode === 'vacate-confirm' && (
                 <div>
                   <div style={fs.vacateWarning}>
-                    ⚠️ This will cancel the current booking for <strong>{modal.info.guest}</strong> and make <strong>{modal.room.name}</strong> vacant.
+                    ⚠️ This will cancel the current booking for <strong>{modal.info.guest}</strong> and make <strong>{modal.room.name}</strong> vacant immediately.
                   </div>
                   {errors.submit && <div style={fs.errorBox}>{errors.submit}</div>}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
@@ -450,26 +467,26 @@ const fs = {
 };
 
 const s = {
-  pageHeader:  { marginBottom: 20 },
-  pageTitle:   { fontSize: 22, fontWeight: 500, color: '#1A1917' },
-  pageSub:     { fontSize: 13, color: '#9A9895', marginTop: 4 },
-  datePicker:  { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '14px 18px' },
-  dateLabel:   { fontSize: 13, fontWeight: 500, color: '#5A5855' },
-  dateInput:   { fontSize: 14, padding: '7px 12px', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 8, background: '#f7f6f2', color: '#1A1917', outline: 'none' },
-  todayBtn:    { fontSize: 12, padding: '6px 12px', background: '#E6F1FB', color: '#185FA5', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  dateSummary: { marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: '#3B6D11', background: '#EAF3DE', padding: '6px 14px', borderRadius: 8 },
-  legend:      { display: 'flex', gap: 20, marginBottom: 16, alignItems: 'center' },
-  legendItem:  { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#5A5855' },
-  catLabel:    { fontSize: 13, fontWeight: 500, color: '#5A5855', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 },
-  catTag:      { fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500 },
-  grid:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 },
-  roomCard:    { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 },
-  roomNo:      { fontSize: 11, color: '#9A9895' },
-  roomName:    { fontSize: 14, fontWeight: 500, color: '#1A1917', cursor: 'pointer', display: 'flex', alignItems: 'center' },
-  roomCat:     { fontSize: 11, color: '#9A9895' },
-  occupiedInfo:{ background: '#FCEBEB', borderRadius: 6, padding: '6px 8px', marginTop: 4 },
-  assignHint:  { fontSize: 11, color: '#1D9E75', fontWeight: 500, marginTop: 2 },
-  nameInput:   { flex: 1, padding: '4px 8px', fontSize: 13, border: '0.5px solid #185FA5', borderRadius: 6, outline: 'none', color: '#1A1917', background: '#fff' },
-  saveBtn:     { background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
+  pageHeader:   { marginBottom: 20 },
+  pageTitle:    { fontSize: 22, fontWeight: 500, color: '#1A1917' },
+  pageSub:      { fontSize: 13, color: '#9A9895', marginTop: 4 },
+  datePicker:   { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '14px 18px' },
+  dateLabel:    { fontSize: 13, fontWeight: 500, color: '#5A5855' },
+  dateInput:    { fontSize: 14, padding: '7px 12px', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 8, background: '#f7f6f2', color: '#1A1917', outline: 'none' },
+  todayBtn:     { fontSize: 12, padding: '6px 12px', background: '#E6F1FB', color: '#185FA5', border: 'none', borderRadius: 8, cursor: 'pointer' },
+  dateSummary:  { marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: '#3B6D11', background: '#EAF3DE', padding: '6px 14px', borderRadius: 8 },
+  legend:       { display: 'flex', gap: 20, marginBottom: 16, alignItems: 'center' },
+  legendItem:   { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#5A5855' },
+  catLabel:     { fontSize: 13, fontWeight: 500, color: '#5A5855', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 },
+  catTag:       { fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500 },
+  grid:         { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 },
+  roomCard:     { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 },
+  roomNo:       { fontSize: 11, color: '#9A9895' },
+  roomName:     { fontSize: 14, fontWeight: 500, color: '#1A1917', cursor: 'pointer', display: 'flex', alignItems: 'center' },
+  roomCat:      { fontSize: 11, color: '#9A9895' },
+  occupiedInfo: { background: '#FCEBEB', borderRadius: 6, padding: '6px 8px', marginTop: 4 },
+  assignHint:   { fontSize: 11, color: '#1D9E75', fontWeight: 500, marginTop: 2 },
+  nameInput:    { flex: 1, padding: '4px 8px', fontSize: 13, border: '0.5px solid #185FA5', borderRadius: 6, outline: 'none', color: '#1A1917', background: '#fff' },
+  saveBtn:      { background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
   cancelNameBtn:{ background: 'none', color: '#9A9895', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 13 },
 };
