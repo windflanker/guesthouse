@@ -30,7 +30,7 @@ export default function BookingsPage() {
   useEffect(load, [filterStatus, filterCat]);
 
   const openApprove = async (booking) => {
-    const rooms = await api.get(`/rooms/available/${booking.category}`);
+    const rooms = await api.get('/rooms/available/all');
     setAvailRooms(rooms);
     setFormData({ roomId: rooms[0]?._id || '' });
     setModal({ type: 'approve', booking });
@@ -173,12 +173,21 @@ export default function BookingsPage() {
           <div style={{ marginTop: 16 }}>
             <label style={styles.label}>Assign room</label>
             {availRooms.length === 0
-              ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available in this category.</p>
+              ? <p style={{ color: 'var(--red-text)', fontSize: 13, marginTop: 6 }}>No rooms available.</p>
               : <select style={{ ...styles.input, marginTop: 6 }} value={formData.roomId}
                   onChange={e => setFormData(f => ({ ...f, roomId: e.target.value }))}>
-                  {availRooms.map(r => <option key={r._id} value={r._id}>{r.number}</option>)}
-                </select>
-            }
+                  <option value="">-- Select a room --</option>
+                  {[1,2,3].map(cat => {
+                    const catRooms = availRooms.filter(r => r.category === cat);
+                    if (catRooms.length === 0) return null;
+                    return (
+                      <optgroup key={cat} label={cat === 1 ? 'Category 1 — Up to Lt Col' : cat === 2 ? 'Category 2 — Colonel & Brigadier' : 'Category 3 — Brigadier & above'}>
+                      {catRooms.map(r => <option key={r._id} value={r._id}>{r.name} ({r.number})</option>)}
+                      </optgroup>
+                      );
+                     })}
+                   </select>
+                }
           </div>
           <ModalActions>
             <button style={s.mBtn('gray')} onClick={() => setModal(null)}>Cancel</button>
