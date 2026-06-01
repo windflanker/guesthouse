@@ -1,1 +1,6 @@
-/* /index.html 200
+/login /index.html 200
+/dashboard /index.html 200
+/rooms /index.html 200
+/bookings /index.html 200
+/request /index.html 200
+/manager /index.html 200
