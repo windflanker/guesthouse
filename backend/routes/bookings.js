@@ -94,6 +94,55 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id/reassign — reassign room for already approved bookings
+router.patch('/:id/reassign', requireAuth, async (req, res) => {
+  try {
+    const { roomId } = req.body;
+    if (!roomId) return res.status(400).json({ message: 'roomId required' });
+
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const room = await Room.findById(roomId);
+    if (!room) return res.status(400).json({ message: 'Room not found' });
+
+    const conflict = await Booking.findOne({
+      room: roomId,
+      status: { $in: ['Approved', 'Checked In'] },
+      checkin: { $lt: booking.checkout },
+      checkout: { $gt: booking.checkin },
+      _id: { $ne: booking._id },
+    });
+
+    if (conflict) {
+      return res.status(400).json({
+        message: `This room is already booked from ${conflict.checkin} to ${conflict.checkout} for ${conflict.officer.name}. Please select a different room.`
+      });
+    }
+
+    // Release old room if any
+    if (booking.room) {
+      await Room.findByIdAndUpdate(booking.room, {
+        status: 'available', currentGuest: null, currentBooking: null,
+      });
+    }
+
+    // Assign new room
+    booking.room = room._id;
+    await booking.save();
+
+    room.status         = 'pending';
+    room.currentGuest   = booking.officer.name;
+    room.currentBooking = booking._id;
+    await room.save();
+
+    await booking.populate('room', 'number name category');
+    res.json(booking);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // PATCH /api/bookings/:id/reject
 router.patch('/:id/reject', requireAuth, async (req, res) => {
   try {
