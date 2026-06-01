@@ -145,7 +145,6 @@ export default function BookingsPage() {
 
   const openEdit = async (booking) => {
     const rooms = await api.get(`/rooms/available/all?checkin=${booking.checkin}&checkout=${booking.checkout}`);
-    // Also include the currently assigned room if any
     if (booking.room) {
       const currentRoom = { _id: booking.room._id, name: booking.room.name, number: booking.room.number, category: booking.room.category };
       const alreadyIn = rooms.find(r => r._id === booking.room._id);
@@ -175,19 +174,11 @@ export default function BookingsPage() {
     if (!formData.roomId) return alert('Please select a room.');
     setLoading(true);
     try {
-      // Cancel existing booking and re-approve with new room
-      await api.patch(`/bookings/${modal.booking._id}/approve`, { roomId: formData.roomId });
+      await api.patch(`/bookings/${modal.booking._id}/reassign`, { roomId: formData.roomId });
       setActionDone(true);
       load();
     } catch (err) {
-      // If approve fails try direct room update
-      try {
-        await api.patch(`/rooms/${formData.roomId}`, { currentGuest: modal.booking.officer.name });
-        setActionDone(true);
-        load();
-      } catch (e) {
-        alert(e.message);
-      }
+      alert(err.message);
     } finally { setLoading(false); }
   };
 
@@ -237,25 +228,21 @@ export default function BookingsPage() {
   };
 
   const getActions = (b) => {
-    const editBtn = (
-      <button style={s.abt('blue')} onClick={() => openEdit(b)}>Edit room</button>
-    );
     if (b.status === 'Pending') return (
       <>
         <button style={s.abt('green')} onClick={() => openApprove(b)}>Approve &amp; assign room</button>
         <button style={s.abt('red')} onClick={() => openReject(b)}>Reject</button>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
-        {editBtn}
       </>
     );
     if (b.status === 'Approved') return (
       <>
+        <button style={s.abt('blue')} onClick={() => openEdit(b)}>Edit room</button>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
-        {editBtn}
       </>
     );
-    if (b.status === 'Cancelled' || b.status === 'Rejected' || b.status === 'Checked Out') return (
-      <>{editBtn}</>
+    if (b.status === 'Checked In') return (
+      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
     );
     return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>;
   };
