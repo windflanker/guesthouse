@@ -1,0 +1,10 @@
+/* Mobile layout */
+@media (max-width: 768px) {
+  .sidebar { display: none !important; }
+  .topBar { display: flex !important; }
+  .mobileMenu.open { display: flex !important; }
+  .shell { flex-direction: column !important; }
+  .main { padding: 16px !important; margin-top: 52px !important; }
+  .bookings-table { font-size: 12px !important; }
+  .bookings-table th, .bookings-table td { padding: 8px 6px !important; }
+}
