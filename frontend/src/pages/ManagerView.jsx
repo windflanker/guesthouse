@@ -1,219 +1,209 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../utils/api.js';
 
-const CAT = {
-  1: { label: 'Category 1 — Up to Lt Col',        bg: '#E6F1FB', text: '#185FA5' },
-  2: { label: 'Category 2 — Colonel & Brigadier',  bg: '#FAEEDA', text: '#854F0B' },
-  3: { label: 'Category 3 — Brigadier & above',    bg: '#EAF3DE', text: '#3B6D11' },
-};
+const RANKS = [
+  { value: 1, label: 'Lt' },
+  { value: 1, label: 'Capt' },
+  { value: 1, label: 'Major' },
+  { value: 1, label: 'Lt Col' },
+  { value: 2, label: 'Colonel' },
+  { value: 2, label: 'Brigadier' },
+  { value: 3, label: 'Maj Gen' },
+  { value: 3, label: 'Lt Gen' },
+  { value: 3, label: 'General' },
+];
 
-const BORDER = { available: '#1D9E75', pending: '#EF9F27', occupied: '#E24B4A' };
+const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
 
-function toDateStr(d) { return d.toISOString().split('T')[0]; }
+export default function NewBookingPage() {
+  const [form, setForm] = useState({
+    name: '', rank: '', unit: '', mobile: '', email: '',
+    idType: '', idNumber: '', checkin: '', checkout: '', arrivalTime: '',
+  });
+  const [touched, setTouched] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-export default function ManagerView() {
-  const [rooms, setRooms]       = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [expanded, setExpanded] = useState(null);
+  const touch = (key) => setTouched(t => ({ ...t, [key]: true }));
+  const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Must be 10 digits' : '';
 
-  useEffect(() => {
-    Promise.all([api.get('/rooms'), api.get('/bookings')])
-      .then(([r, b]) => { setRooms(r); setBookings(b); })
-      .catch(console.error);
-  }, []);
-
-  const getRoomInfo = (room) => {
-    const date = selectedDate;
-    const booking = bookings.find(b =>
-      b.room?._id === room._id &&
-      ['Approved', 'Checked In'].includes(b.status) &&
-      b.checkin <= date && b.checkout >= date
-    );
-    if (booking) return {
-      status: 'occupied',
-      booking,
-      officer: booking.officer,
-      checkin: booking.checkin,
-      checkout: booking.checkout,
-      ref: booking.ref,
-    };
-    return { status: 'available' };
+  const fieldError = (key) => {
+    if (!touched[key]) return '';
+    if (key === 'mobile') return mobileError;
+    if (REQUIRED_FIELDS.includes(key) && !form[key]) return 'This field is required';
+    return '';
   };
 
-  const isToday = selectedDate === toDateStr(new Date());
-  const availCount = rooms.filter(r => getRoomInfo(r).status === 'available').length;
-  const occupiedCount = rooms.length - availCount;
+  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile);
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const allTouched = REQUIRED_FIELDS.reduce((acc, k) => ({ ...acc, [k]: true }), {});
+    setTouched(allTouched);
+    if (!isFormValid) return;
+    setLoading(true); setError('');
+    try {
+      await api.post('/bookings', {
+        officer: { name: form.name, rank: form.rank, unit: form.unit, mobile: form.mobile, email: form.email, idType: form.idType, idNumber: form.idNumber, arrivalTime: form.arrivalTime },
+        category: RANKS.find(r => r.label === form.rank)?.value || 1,
+        checkin: form.checkin,
+        checkout: form.checkout,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div style={s.page}>
+        <div style={s.card}>
+          <img src="/logo.jpeg" alt="Logo" style={s.logo} />
+          <div style={{ fontSize: 48, margin: '8px 0' }}>✓</div>
+          <h2 style={s.heading}>Request Submitted</h2>
+          <p style={{ fontSize: 14, color: '#5A5855', marginBottom: 24, textAlign: 'center' }}>
+            Your booking request is pending admin approval. You will receive an SMS once approved.
+          </p>
+          <button style={s.submitBtn} onClick={() => { setSubmitted(false); setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'' }); setTouched({}); }}>
+            Submit Another Request
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={s.header}>
-        <div>
-          <h2 style={s.title}>Room Status — Manager View</h2>
-          <p style={s.sub}>View room availability and complete guest details</p>
-        </div>
-        <div style={s.stats}>
-          <div style={s.stat}><div style={{ ...s.statNum, color: '#1D9E75' }}>{availCount}</div><div style={s.statLabel}>Available</div></div>
-          <div style={s.stat}><div style={{ ...s.statNum, color: '#E24B4A' }}>{occupiedCount}</div><div style={s.statLabel}>Occupied</div></div>
-          <div style={s.stat}><div style={{ ...s.statNum, color: '#185FA5' }}>{rooms.length}</div><div style={s.statLabel}>Total</div></div>
-        </div>
-      </div>
+    <div style={s.page}>
+      <div style={s.card}>
+        <img src="/logo.jpeg" alt="Logo" style={s.logo} />
+        <h1 style={s.heading}>Guest Room Booking</h1>
+        <p style={s.sub}>Officers' Guest House</p>
+        <div style={s.divider} />
 
-      {/* Date picker */}
-      <div style={s.datePicker}>
-        <span style={s.dateLabel}>Checking availability for:</span>
-        <input type="date" value={selectedDate}
-          onChange={e => setSelectedDate(e.target.value)}
-          style={s.dateInput} />
-        {!isToday && (
-          <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>
+        {form.name && form.rank && (
+          <div style={s.guestBanner}>
+            <div style={s.guestBannerRow}>
+              <span style={s.guestBannerLabel}>Officer</span>
+              <span style={s.guestBannerVal}>{form.rank} {form.name}</span>
+            </div>
+            {form.unit && <div style={s.guestBannerRow}>
+              <span style={s.guestBannerLabel}>Unit</span>
+              <span style={s.guestBannerVal}>{form.unit}</span>
+            </div>}
+          </div>
         )}
-        <div style={s.dateSummary}>{availCount} of {rooms.length} rooms available on {selectedDate}</div>
+
+        {error && <div style={s.errorBanner}>{error}</div>}
+
+        <form onSubmit={handleSubmit} style={{ width: '100%' }} noValidate>
+          <div style={s.sectionLabel}>Personal Details</div>
+          <div className="form-grid" style={s.grid}>
+            <Field label="Full Name" error={fieldError('name')} required>
+              <input style={inputStyle(fieldError('name'))} value={form.name}
+                onChange={set('name')} onBlur={() => touch('name')} placeholder="e.g. Rajiv Kumar" />
+            </Field>
+            <Field label="Rank" error={fieldError('rank')} required>
+              <select style={inputStyle(fieldError('rank'))} value={form.rank}
+                onChange={set('rank')} onBlur={() => touch('rank')}>
+                <option value="">Select rank</option>
+                {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Unit / Organisation" error={fieldError('unit')} required>
+              <input style={inputStyle(fieldError('unit'))} value={form.unit}
+                onChange={set('unit')} onBlur={() => touch('unit')} placeholder="e.g. 5 Rajput Regiment" />
+            </Field>
+            <Field label="Mobile Number" error={fieldError('mobile')} required>
+              <input style={inputStyle(fieldError('mobile'))} value={form.mobile}
+                onChange={e => { const v = e.target.value.replace(/\D/g,'').slice(0,10); setForm(f=>({...f,mobile:v})); }}
+                onBlur={() => touch('mobile')} placeholder="10-digit mobile number"
+                inputMode="numeric" maxLength={10} />
+            </Field>
+            <Field label="Email Address">
+              <input style={inputStyle('')} type="email" value={form.email}
+                onChange={set('email')} placeholder="officer@army.in" />
+            </Field>
+            <Field label="Govt ID Type" error={fieldError('idType')} required>
+              <select style={inputStyle(fieldError('idType'))} value={form.idType}
+                onChange={set('idType')} onBlur={() => touch('idType')}>
+                <option value="">Select ID type</option>
+                <option>Service ID card</option>
+                <option>Aadhaar card</option>
+                <option>Passport</option>
+              </select>
+            </Field>
+            <Field label="Govt ID Number" error={fieldError('idNumber')} required>
+              <input style={inputStyle(fieldError('idNumber'))} value={form.idNumber}
+                onChange={set('idNumber')} onBlur={() => touch('idNumber')} placeholder="ID number" />
+            </Field>
+          </div>
+
+          <div style={{ ...s.sectionLabel, marginTop: 24 }}>Stay Details</div>
+          <div className="form-grid" style={s.grid}>
+            <Field label="Check-in Date" error={fieldError('checkin')} required>
+              <input type="date" style={inputStyle(fieldError('checkin'))} value={form.checkin}
+                onChange={set('checkin')} onBlur={() => touch('checkin')} />
+            </Field>
+            <Field label="Check-out Date" error={fieldError('checkout')} required>
+              <input type="date" style={inputStyle(fieldError('checkout'))} value={form.checkout}
+                onChange={set('checkout')} onBlur={() => touch('checkout')} />
+            </Field>
+            <Field label="Expected Time of Arrival" error={fieldError('arrivalTime')} required>
+              <input type="time" style={inputStyle(fieldError('arrivalTime'))} value={form.arrivalTime}
+                onChange={set('arrivalTime')} onBlur={() => touch('arrivalTime')} />
+            </Field>
+          </div>
+
+          <button type="submit"
+            style={{ ...s.submitBtn, opacity: isFormValid ? 1 : 0.45, cursor: isFormValid ? 'pointer' : 'not-allowed' }}
+            disabled={!isFormValid || loading}>
+            {loading ? 'Submitting…' : 'Submit Booking Request'}
+          </button>
+        </form>
       </div>
-
-      {/* Legend */}
-      <div style={s.legend}>
-        {[['Available','#1D9E75'],['Occupied','#E24B4A'],['Pending','#EF9F27']].map(([l,c]) => (
-          <div key={l} style={s.legendItem}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />
-            {l}
-          </div>
-        ))}
-        <div style={{ ...s.legendItem, color: '#185FA5', fontSize: 11 }}>💡 Click occupied room to see full details</div>
-      </div>
-
-      {/* Rooms by category */}
-      {[1, 2, 3].map(cat => (
-        <div key={cat} style={{ marginBottom: 28 }}>
-          <div style={s.catLabel}>
-            {CAT[cat].label}
-            <span style={{ ...s.catTag, background: CAT[cat].bg, color: CAT[cat].text }}>
-              {rooms.filter(r => r.category === cat).length} rooms
-            </span>
-            <span style={{ ...s.catTag, background: '#EAF3DE', color: '#3B6D11', marginLeft: 4 }}>
-              {rooms.filter(r => r.category === cat && getRoomInfo(r).status === 'available').length} available
-            </span>
-          </div>
-
-          <div style={s.grid}>
-            {rooms.filter(r => r.category === cat).map(room => {
-              const info = getRoomInfo(room);
-              const isExpanded = expanded === room._id;
-              const isOccupied = info.status === 'occupied';
-
-              return (
-                <div key={room._id}
-                  style={{ ...s.card, borderLeft: `3px solid ${BORDER[info.status] || '#ccc'}`, cursor: isOccupied ? 'pointer' : 'default' }}
-                  onClick={() => isOccupied && setExpanded(isExpanded ? null : room._id)}>
-
-                  <div style={s.cardTop}>
-                    <div>
-                      <div style={s.roomNo}>{room.number}</div>
-                      <div style={s.roomName}>{room.name}</div>
-                      <div style={s.roomCat}>{CAT[room.category].label.split(' — ')[1]}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{
-                        fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500,
-                        background: info.status === 'occupied' ? '#FCEBEB' : '#EAF3DE',
-                        color: info.status === 'occupied' ? '#A32D2D' : '#3B6D11',
-                      }}>
-                        {info.status === 'occupied' ? 'Occupied' : 'Available'}
-                      </span>
-                      {isOccupied && <div style={{ fontSize: 10, color: '#185FA5', marginTop: 4 }}>{isExpanded ? '▲ Less' : '▼ Details'}</div>}
-                    </div>
-                  </div>
-
-                  {isOccupied && (
-                    <div style={s.quickInfo}>
-                      <div style={s.qRow}>
-                        <span style={s.qLabel}>Guest</span>
-                        <span style={s.qVal}>{info.officer.rank} {info.officer.name}</span>
-                      </div>
-                      <div style={s.qRow}>
-                        <span style={s.qLabel}>Mobile</span>
-                        <span style={{ ...s.qVal, color: '#185FA5', fontWeight: 600 }}>{info.officer.mobile}</span>
-                      </div>
-                      <div style={s.qRow}>
-                        <span style={s.qLabel}>Stay</span>
-                        <span style={s.qVal}>{info.checkin} → {info.checkout}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {isOccupied && isExpanded && (
-                    <div style={s.fullDetails}>
-                      <div style={s.detailsTitle}>Complete Guest Details</div>
-
-                      {[
-                        ['Booking Ref',   info.ref],
-                        ['Full Name',     `${info.officer.rank} ${info.officer.name}`],
-                        ['Unit',          info.officer.unit],
-                        ['Mobile',        info.officer.mobile],
-                        ['Email',         info.officer.email || '—'],
-                        ['ID Type',       info.officer.idType || '—'],
-                        ['ID Number',     info.officer.idNumber || '—'],
-                        ['Arrival Time',  info.officer.arrivalTime || '—'],
-                        ['Check-in',      info.checkin],
-                        ['Check-out',     info.checkout],
-                      ].map(([label, value]) => (
-                        <div key={label} style={s.detailRow}>
-                          <span style={s.detailLabel}>{label}</span>
-                          <span style={{
-                            ...s.detailVal,
-                            color: label === 'Mobile' ? '#185FA5' : '#1A1917',
-                            fontWeight: label === 'Mobile' ? 600 : 400,
-                          }}>{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isOccupied && (
-                    <div style={s.availBadge}>✓ Available</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
 
+function Field({ label, children, error, required }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <label style={{ fontSize: 12, fontWeight: 500, color: '#5A5855' }}>
+        {label}{required && <span style={{ color: '#E24B4A' }}> *</span>}
+      </label>
+      {children}
+      {error && <span style={{ fontSize: 11, color: '#E24B4A', marginTop: 2 }}>{error}</span>}
+    </div>
+  );
+}
+
+const inputStyle = (error) => ({
+  padding: '9px 12px', fontSize: 14, width: '100%',
+  border: `0.5px solid ${error ? '#E24B4A' : 'rgba(0,0,0,0.18)'}`,
+  borderRadius: 10, outline: 'none',
+  background: error ? '#FFF5F5' : '#fff',
+  color: '#1A1917',
+  boxShadow: error ? '0 0 0 3px rgba(226,75,74,0.1)' : 'none',
+});
+
 const s = {
-  header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  title:       { fontSize: 22, fontWeight: 500, color: '#1A1917' },
-  sub:         { fontSize: 13, color: '#9A9895', marginTop: 4 },
-  stats:       { display: 'flex', gap: 12 },
-  stat:        { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '10px 16px', textAlign: 'center', minWidth: 70 },
-  statNum:     { fontSize: 24, fontWeight: 600 },
-  statLabel:   { fontSize: 11, color: '#9A9895', marginTop: 2 },
-  datePicker:  { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '14px 18px' },
-  dateLabel:   { fontSize: 13, fontWeight: 500, color: '#5A5855' },
-  dateInput:   { fontSize: 14, padding: '7px 12px', border: '0.5px solid rgba(0,0,0,0.18)', borderRadius: 8, background: '#f7f6f2', color: '#1A1917', outline: 'none' },
-  todayBtn:    { fontSize: 12, padding: '6px 12px', background: '#E6F1FB', color: '#185FA5', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  dateSummary: { marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: '#3B6D11', background: '#EAF3DE', padding: '6px 14px', borderRadius: 8 },
-  legend:      { display: 'flex', gap: 20, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' },
-  legendItem:  { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#5A5855' },
-  catLabel:    { fontSize: 13, fontWeight: 500, color: '#5A5855', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 },
-  catTag:      { fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500 },
-  grid:        { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 },
-  card:        { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, transition: 'box-shadow 0.15s' },
-  cardTop:     { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-  roomNo:      { fontSize: 11, color: '#9A9895' },
-  roomName:    { fontSize: 15, fontWeight: 600, color: '#1A1917' },
-  roomCat:     { fontSize: 11, color: '#9A9895' },
-  quickInfo:   { background: '#F7F6F2', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 },
-  qRow:        { display: 'flex', justifyContent: 'space-between', fontSize: 12 },
-  qLabel:      { color: '#9A9895', minWidth: 50 },
-  qVal:        { color: '#1A1917', textAlign: 'right' },
-  fullDetails: { background: '#EEF4FF', border: '0.5px solid #BDD0F8', borderRadius: 8, padding: '12px 14px' },
-  detailsTitle:{ fontSize: 11, fontWeight: 700, color: '#185FA5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 },
-  detailRow:   { display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid rgba(24,95,165,0.15)', fontSize: 12 },
-  detailLabel: { color: '#5A5855', minWidth: 90 },
-  detailVal:   { color: '#1A1917', textAlign: 'right', flex: 1 },
-  availBadge:  { background: '#EAF3DE', color: '#3B6D11', fontSize: 12, fontWeight: 500, padding: '6px 10px', borderRadius: 6, textAlign: 'center' },
+  page:           { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '24px 12px' },
+  card:           { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '28px 20px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  logo:           { width: 72, height: 72, objectFit: 'contain', marginBottom: 12 },
+  heading:        { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
+  sub:            { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
+  divider:        { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
+  guestBanner:    { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
+  guestBannerRow: { display: 'flex', gap: 12, fontSize: 13 },
+  guestBannerLabel:{ color: '#185FA5', fontWeight: 500, minWidth: 56 },
+  guestBannerVal: { color: '#1A1917' },
+  errorBanner:    { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
+  sectionLabel:   { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
+  grid:           { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' },
+  submitBtn:      { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
 };
