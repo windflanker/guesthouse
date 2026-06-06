@@ -297,8 +297,8 @@ export default function BookingsPage() {
         </select>
       </div>
 
-      <div style={styles.card}>
-        <table style={styles.table}>
+      <div style={styles.card} className="table-wrap">
+        <table style={styles.table} className="bookings-table">
           <thead>
             <tr>
               {['Ref', 'Officer', 'Rank / Unit', 'Cat', 'Room', 'Check-in', 'Check-out', 'Status', 'Actions'].map(h => (
