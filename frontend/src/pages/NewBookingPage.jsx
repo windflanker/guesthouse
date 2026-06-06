@@ -26,8 +26,7 @@ export default function NewBookingPage() {
   const [error, setError] = useState('');
 
   const touch = (key) => setTouched(t => ({ ...t, [key]: true }));
-
-  const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Error Mobile Number' : '';
+  const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Must be 10 digits' : '';
 
   const fieldError = (key) => {
     if (!touched[key]) return '';
@@ -37,27 +36,17 @@ export default function NewBookingPage() {
   };
 
   const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile);
-
-  const set = (key) => (e) => {
-    setForm(f => ({ ...f, [key]: e.target.value }));
-  };
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Touch all fields to show errors
     const allTouched = REQUIRED_FIELDS.reduce((acc, k) => ({ ...acc, [k]: true }), {});
     setTouched(allTouched);
     if (!isFormValid) return;
-
     setLoading(true); setError('');
     try {
       await api.post('/bookings', {
-        officer: {
-          name: form.name, rank: form.rank, unit: form.unit,
-          mobile: form.mobile, email: form.email,
-          idType: form.idType, idNumber: form.idNumber,
-          arrivalTime: form.arrivalTime,
-        },
+        officer: { name: form.name, rank: form.rank, unit: form.unit, mobile: form.mobile, email: form.email, idType: form.idType, idNumber: form.idNumber, arrivalTime: form.arrivalTime },
         category: RANKS.find(r => r.label === form.rank)?.value || 1,
         checkin: form.checkin,
         checkout: form.checkout,
@@ -78,7 +67,7 @@ export default function NewBookingPage() {
           <div style={{ fontSize: 48, margin: '8px 0' }}>✓</div>
           <h2 style={s.heading}>Request Submitted</h2>
           <p style={{ fontSize: 14, color: '#5A5855', marginBottom: 24, textAlign: 'center' }}>
-            Your booking request is pending admin approval. You will receive an SMS on your registered mobile number once approved.
+            Your booking request is pending admin approval. You will receive an SMS once approved.
           </p>
           <button style={s.submitBtn} onClick={() => { setSubmitted(false); setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'' }); setTouched({}); }}>
             Submit Another Request
@@ -91,13 +80,11 @@ export default function NewBookingPage() {
   return (
     <div style={s.page}>
       <div style={s.card}>
-        {/* Header */}
         <img src="/logo.jpeg" alt="Logo" style={s.logo} />
         <h1 style={s.heading}>Guest Room Booking</h1>
         <p style={s.sub}>Officers' Guest House</p>
         <div style={s.divider} />
 
-        {/* Guest Details Summary (shown after name/rank filled) */}
         {form.name && form.rank && (
           <div style={s.guestBanner}>
             <div style={s.guestBannerRow}>
@@ -115,7 +102,7 @@ export default function NewBookingPage() {
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }} noValidate>
           <div style={s.sectionLabel}>Personal Details</div>
-          <div style={s.grid}>
+          <div className="form-grid" style={s.grid}>
             <Field label="Full Name" error={fieldError('name')} required>
               <input style={inputStyle(fieldError('name'))} value={form.name}
                 onChange={set('name')} onBlur={() => touch('name')} placeholder="e.g. Rajiv Kumar" />
@@ -157,7 +144,7 @@ export default function NewBookingPage() {
           </div>
 
           <div style={{ ...s.sectionLabel, marginTop: 24 }}>Stay Details</div>
-          <div style={s.grid}>
+          <div className="form-grid" style={s.grid}>
             <Field label="Check-in Date" error={fieldError('checkin')} required>
               <input type="date" style={inputStyle(fieldError('checkin'))} value={form.checkin}
                 onChange={set('checkin')} onBlur={() => touch('checkin')} />
@@ -172,11 +159,9 @@ export default function NewBookingPage() {
             </Field>
           </div>
 
-          <button
-            type="submit"
+          <button type="submit"
             style={{ ...s.submitBtn, opacity: isFormValid ? 1 : 0.45, cursor: isFormValid ? 'pointer' : 'not-allowed' }}
-            disabled={!isFormValid || loading}
-          >
+            disabled={!isFormValid || loading}>
             {loading ? 'Submitting…' : 'Submit Booking Request'}
           </button>
         </form>
@@ -207,41 +192,18 @@ const inputStyle = (error) => ({
 });
 
 const s = {
-  page: {
-    minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)',
-    display: 'flex', justifyContent: 'center', padding: '32px 16px',
-  },
-  card: {
-    background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)',
-    borderRadius: 20, padding: '36px 40px',
-    width: '100%', maxWidth: 700, alignSelf: 'flex-start',
-    boxShadow: '0 8px 40px rgba(0,0,0,0.08)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-  },
-  logo: { width: 80, height: 80, objectFit: 'contain', marginBottom: 12 },
-  heading: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
-  sub: { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
-  divider: { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '16px 0 20px', opacity: 0.4 },
-  guestBanner: {
-    width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0',
-    borderRadius: 10, padding: '12px 16px', marginBottom: 20,
-    display: 'flex', flexDirection: 'column', gap: 4,
-  },
+  page:           { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '24px 12px' },
+  card:           { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '28px 20px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  logo:           { width: 72, height: 72, objectFit: 'contain', marginBottom: 12 },
+  heading:        { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
+  sub:            { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
+  divider:        { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
+  guestBanner:    { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
   guestBannerRow: { display: 'flex', gap: 12, fontSize: 13 },
-  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 56 },
+  guestBannerLabel:{ color: '#185FA5', fontWeight: 500, minWidth: 56 },
   guestBannerVal: { color: '#1A1917' },
-  errorBanner: {
-    width: '100%', background: '#FCEBEB', color: '#A32D2D',
-    fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16,
-  },
-  sectionLabel: {
-    width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895',
-    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14,
-  },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%' },
-  submitBtn: {
-    marginTop: 28, background: '#185FA5', color: '#fff',
-    border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500,
-    borderRadius: 10, transition: 'all 0.15s', width: '100%',
-  },
+  errorBanner:    { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
+  sectionLabel:   { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
+  grid:           { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' },
+  submitBtn:      { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
 };
