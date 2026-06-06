@@ -7,6 +7,44 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+
+    /* Hide sidebar on mobile, show topbar */
+    @media (max-width: 768px) {
+      #sidebar  { display: none !important; }
+      #topbar   { display: flex !important; }
+      #main     { padding: 16px 14px !important; margin-top: 54px !important; }
+
+      /* Bookings table scroll */
+      .table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+
+      /* Stack grid to single column on mobile */
+      .rooms-grid { grid-template-columns: 1fr 1fr !important; }
+      .form-grid  { grid-template-columns: 1fr !important; }
+      .dash-metrics { grid-template-columns: repeat(3, 1fr) !important; }
+      .dash-grid  { grid-template-columns: 1fr !important; }
+
+      /* Date picker wrap */
+      .date-picker-row { flex-wrap: wrap !important; gap: 8px !important; }
+      .date-summary { margin-left: 0 !important; }
+
+      /* Manager header stack */
+      .manager-header { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+      .manager-stats  { width: 100% !important; justify-content: space-between !important; }
+
+      /* Manager grid */
+      .manager-grid { grid-template-columns: 1fr !important; }
+
+      /* Modal full screen on mobile */
+      .modal-box { width: 96vw !important; max-width: 96vw !important; margin: 0 auto !important; padding: 20px 16px !important; max-height: 90vh !important; overflow-y: auto !important; }
+    }
+
+    @media (min-width: 769px) {
+      #topbar    { display: none !important; }
+      #mobilemenu { display: none !important; }
+    }
+  </style>
 </head>
 <body>
   <div id="root"></div>
