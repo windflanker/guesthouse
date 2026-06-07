@@ -15,6 +15,14 @@ const RANKS = [
 
 const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
 
+function calcNights(checkin, checkout) {
+  if (!checkin || !checkout) return 0;
+  const a = new Date(checkin);
+  const b = new Date(checkout);
+  const diff = Math.round((b - a) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 0;
+}
+
 export default function NewBookingPage() {
   const [form, setForm] = useState({
     name: '', rank: '', unit: '', mobile: '', email: '',
@@ -31,11 +39,14 @@ export default function NewBookingPage() {
   const fieldError = (key) => {
     if (!touched[key]) return '';
     if (key === 'mobile') return mobileError;
+    if (key === 'checkout' && form.checkin && form.checkout && form.checkout <= form.checkin)
+      return 'Check-out must be after check-in';
     if (REQUIRED_FIELDS.includes(key) && !form[key]) return 'This field is required';
     return '';
   };
 
-  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile);
+  const nights = calcNights(form.checkin, form.checkout);
+  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile) && nights > 0;
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
@@ -46,7 +57,12 @@ export default function NewBookingPage() {
     setLoading(true); setError('');
     try {
       await api.post('/bookings', {
-        officer: { name: form.name, rank: form.rank, unit: form.unit, mobile: form.mobile, email: form.email, idType: form.idType, idNumber: form.idNumber, arrivalTime: form.arrivalTime },
+        officer: {
+          name: form.name, rank: form.rank, unit: form.unit,
+          mobile: form.mobile, email: form.email,
+          idType: form.idType, idNumber: form.idNumber,
+          arrivalTime: form.arrivalTime,
+        },
         category: RANKS.find(r => r.label === form.rank)?.value || 1,
         checkin: form.checkin,
         checkout: form.checkout,
@@ -69,7 +85,11 @@ export default function NewBookingPage() {
           <p style={{ fontSize: 14, color: '#5A5855', marginBottom: 24, textAlign: 'center' }}>
             Your booking request is pending admin approval. You will receive an SMS once approved.
           </p>
-          <button style={s.submitBtn} onClick={() => { setSubmitted(false); setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'' }); setTouched({}); }}>
+          <button style={s.submitBtn} onClick={() => {
+            setSubmitted(false);
+            setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'' });
+            setTouched({});
+          }}>
             Submit Another Request
           </button>
         </div>
@@ -159,6 +179,26 @@ export default function NewBookingPage() {
             </Field>
           </div>
 
+          {/* Nights counter + checkout note */}
+          {form.checkin && form.checkout && nights > 0 && (
+            <div style={s.nightsBox}>
+              <div style={s.nightsCount}>
+                🌙 <strong>{nights} night{nights > 1 ? 's' : ''}</strong>
+                <span style={s.nightsDates}> &nbsp;({form.checkin} → {form.checkout})</span>
+              </div>
+              <div style={s.checkoutNote}>
+                Check-out time: <strong>1000h</strong>
+              </div>
+            </div>
+          )}
+
+          {/* Show checkout note even before dates filled */}
+          {!(form.checkin && form.checkout && nights > 0) && (
+            <div style={s.checkoutNoteAlone}>
+              Check-out time is <strong>1000h</strong>
+            </div>
+          )}
+
           <button type="submit"
             style={{ ...s.submitBtn, opacity: isFormValid ? 1 : 0.45, cursor: isFormValid ? 'pointer' : 'not-allowed' }}
             disabled={!isFormValid || loading}>
@@ -192,18 +232,23 @@ const inputStyle = (error) => ({
 });
 
 const s = {
-  page:           { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '24px 12px' },
-  card:           { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '28px 20px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  logo:           { width: 72, height: 72, objectFit: 'contain', marginBottom: 12 },
-  heading:        { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
-  sub:            { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
-  divider:        { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
-  guestBanner:    { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
-  guestBannerRow: { display: 'flex', gap: 12, fontSize: 13 },
-  guestBannerLabel:{ color: '#185FA5', fontWeight: 500, minWidth: 56 },
-  guestBannerVal: { color: '#1A1917' },
-  errorBanner:    { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
-  sectionLabel:   { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
-  grid:           { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' },
-  submitBtn:      { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
+  page:             { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '24px 12px' },
+  card:             { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '28px 20px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  logo:             { width: 72, height: 72, objectFit: 'contain', marginBottom: 12 },
+  heading:          { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
+  sub:              { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
+  divider:          { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
+  guestBanner:      { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
+  guestBannerRow:   { display: 'flex', gap: 12, fontSize: 13 },
+  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 56 },
+  guestBannerVal:   { color: '#1A1917' },
+  errorBanner:      { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
+  sectionLabel:     { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
+  grid:             { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' },
+  nightsBox:        { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 },
+  nightsCount:      { fontSize: 15, color: '#185FA5' },
+  nightsDates:      { fontSize: 13, color: '#5A5855' },
+  checkoutNote:     { fontSize: 13, color: '#854F0B' },
+  checkoutNoteAlone:{ width: '100%', marginTop: 14, fontSize: 13, color: '#854F0B', background: '#FAEEDA', border: '0.5px solid #F5C97A', borderRadius: 8, padding: '10px 14px' },
+  submitBtn:        { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
 };
