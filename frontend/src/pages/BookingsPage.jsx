@@ -5,6 +5,17 @@ import Modal from '../components/Modal.jsx';
 
 const CAT_LABELS = { 1: 'Cat 1', 2: 'Cat 2', 3: 'Cat 3' };
 
+const overlay  = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+const popupBox = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' };
+const popupHeader = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '0.5px solid rgba(0,0,0,0.1)' };
+const popupTitle = { fontSize: 16, fontWeight: 600, color: '#1A1917' };
+const closeBtn = { background: 'none', border: 'none', fontSize: 18, color: '#9A9895', cursor: 'pointer', padding: '2px 6px' };
+const popupBody = { padding: '8px 20px' };
+const detailRow = { display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)', fontSize: 13, gap: 12 };
+const detailLabel = { color: '#9A9895', minWidth: 100, flexShrink: 0 };
+const detailVal = { color: '#1A1917', textAlign: 'right', wordBreak: 'break-all' };
+const doneBtn = { background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' };
+
 function WhatsAppBox({ mobile, message, onConfirmed }) {
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [copiedNum, setCopiedNum] = useState(false);
@@ -28,7 +39,6 @@ function WhatsAppBox({ mobile, message, onConfirmed }) {
         <span style={ws.icon}>💬</span>
         <span style={ws.title}>WhatsApp Message to send</span>
       </div>
-
       <div style={ws.field}>
         <div style={ws.label}>Mobile Number</div>
         <div style={ws.row}>
@@ -38,7 +48,6 @@ function WhatsAppBox({ mobile, message, onConfirmed }) {
           </button>
         </div>
       </div>
-
       <div style={ws.field}>
         <div style={ws.label}>Message</div>
         <div style={ws.msgBox}>{message}</div>
@@ -46,7 +55,6 @@ function WhatsAppBox({ mobile, message, onConfirmed }) {
           {copiedMsg ? '✓ Message Copied!' : '📋 Copy Message'}
         </button>
       </div>
-
       <div style={ws.confirmField}>
         <div style={ws.label}>Have you sent this message on WhatsApp?</div>
         <select style={ws.confirmSelect} value={sentStatus} onChange={handleSentChange}>
@@ -54,7 +62,6 @@ function WhatsAppBox({ mobile, message, onConfirmed }) {
           <option value="yes">✅ Yes, message sent</option>
         </select>
       </div>
-
       <div style={ws.hint}>
         Copy the number → open WhatsApp → paste number → send message → confirm above
       </div>
@@ -63,10 +70,7 @@ function WhatsAppBox({ mobile, message, onConfirmed }) {
 }
 
 const ws = {
-  box: {
-    background: '#E7F5E9', border: '1px solid #A5D6A7',
-    borderRadius: 10, padding: '14px 16px', marginTop: 16,
-  },
+  box: { background: '#E7F5E9', border: '1px solid #A5D6A7', borderRadius: 10, padding: '14px 16px', marginTop: 16 },
   header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
   icon: { fontSize: 20 },
   title: { fontSize: 13, fontWeight: 600, color: '#2E7D32' },
@@ -74,43 +78,20 @@ const ws = {
   label: { fontSize: 11, fontWeight: 600, color: '#388E3C', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' },
   row: { display: 'flex', alignItems: 'center', gap: 8 },
   value: { fontSize: 14, fontWeight: 500, color: '#1A1917', flex: 1, background: '#fff', padding: '6px 10px', borderRadius: 6 },
-  msgBox: {
-    fontSize: 13, color: '#1A1917', background: '#fff',
-    padding: '10px 12px', borderRadius: 6, lineHeight: 1.6,
-    border: '0.5px solid #C8E6C9', whiteSpace: 'pre-wrap',
-  },
-  copyBtn: {
-    background: '#2E7D32', color: '#fff', border: 'none',
-    borderRadius: 6, padding: '6px 12px', fontSize: 12,
-    cursor: 'pointer', whiteSpace: 'nowrap',
-  },
-  copyBtnFull: {
-    marginTop: 8, width: '100%', background: '#2E7D32', color: '#fff',
-    border: 'none', borderRadius: 6, padding: '8px', fontSize: 13,
-    cursor: 'pointer', fontWeight: 500,
-  },
+  msgBox: { fontSize: 13, color: '#1A1917', background: '#fff', padding: '10px 12px', borderRadius: 6, lineHeight: 1.6, border: '0.5px solid #C8E6C9', whiteSpace: 'pre-wrap' },
+  copyBtn: { background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' },
+  copyBtnFull: { marginTop: 8, width: '100%', background: '#2E7D32', color: '#fff', border: 'none', borderRadius: 6, padding: '8px', fontSize: 13, cursor: 'pointer', fontWeight: 500 },
   confirmField: { marginTop: 12, marginBottom: 8 },
-  confirmSelect: {
-    width: '100%', padding: '8px 12px', fontSize: 13,
-    border: '1px solid #A5D6A7', borderRadius: 6,
-    background: '#fff', color: '#1A1917', marginTop: 4,
-  },
-  hint: {
-    fontSize: 10, color: '#558B2F', marginTop: 8,
-    borderTop: '0.5px solid #C8E6C9', paddingTop: 8, textAlign: 'center',
-  },
+  confirmSelect: { width: '100%', padding: '8px 12px', fontSize: 13, border: '1px solid #A5D6A7', borderRadius: 6, background: '#fff', color: '#1A1917', marginTop: 4 },
+  hint: { fontSize: 10, color: '#558B2F', marginTop: 8, borderTop: '0.5px solid #C8E6C9', paddingTop: 8, textAlign: 'center' },
 };
 
 function buildMessage(type, booking) {
   switch (type) {
-    case 'approve':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
-    case 'reject':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
-    case 'cancel':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
-    default:
-      return '';
+    case 'approve': return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
+    case 'reject':  return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
+    case 'cancel':  return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
+    default: return '';
   }
 }
 
@@ -124,6 +105,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(false);
   const [actionDone, setActionDone] = useState(false);
   const [msgConfirmed, setMsgConfirmed] = useState(false);
+  const [detailPopup, setDetailPopup] = useState(null);
 
   const load = () => {
     const params = new URLSearchParams();
@@ -165,9 +147,8 @@ export default function BookingsPage() {
       setActionDone(true);
       setModal(m => ({ ...m, whatsappMsg: buildMessage('approve', modal.booking), done: true }));
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally { setLoading(false); }
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
   };
 
   const doEdit = async () => {
@@ -177,16 +158,11 @@ export default function BookingsPage() {
       await api.patch(`/bookings/${modal.booking._id}/reassign`, { roomId: formData.roomId });
       setActionDone(true);
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally { setLoading(false); }
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
   };
 
-  const openReject = (booking) => {
-    setActionDone(false);
-    setMsgConfirmed(false);
-    setModal({ type: 'reject', booking });
-  };
+  const openReject = (booking) => { setActionDone(false); setMsgConfirmed(false); setModal({ type: 'reject', booking }); };
 
   const doReject = async () => {
     setLoading(true);
@@ -195,17 +171,11 @@ export default function BookingsPage() {
       setActionDone(true);
       setModal(m => ({ ...m, whatsappMsg: buildMessage('reject', modal.booking), done: true }));
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally { setLoading(false); }
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
   };
 
-  const openCancel = (booking) => {
-    setFormData({ cancelReason: '' });
-    setActionDone(false);
-    setMsgConfirmed(false);
-    setModal({ type: 'cancel', booking });
-  };
+  const openCancel = (booking) => { setFormData({ cancelReason: '' }); setActionDone(false); setMsgConfirmed(false); setModal({ type: 'cancel', booking }); };
 
   const doCancel = async () => {
     if (!formData.cancelReason?.trim()) return alert('Cancellation reason is required.');
@@ -216,16 +186,11 @@ export default function BookingsPage() {
       setActionDone(true);
       setModal(m => ({ ...m, whatsappMsg: buildMessage('cancel', bookingWithReason), done: true }));
       load();
-    } catch (err) {
-      alert(err.message);
-    } finally { setLoading(false); }
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
   };
 
-  const closeModal = () => {
-    setModal(null);
-    setActionDone(false);
-    setMsgConfirmed(false);
-  };
+  const closeModal = () => { setModal(null); setActionDone(false); setMsgConfirmed(false); };
 
   const getActions = (b) => {
     if (b.status === 'Pending') return (
@@ -240,9 +205,6 @@ export default function BookingsPage() {
         <button style={s.abt('blue')} onClick={() => openEdit(b)}>Edit room</button>
         <button style={s.abt('red')} onClick={() => openCancel(b)}>Cancel</button>
       </>
-    );
-    if (b.status === 'Checked In') return (
-      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
     );
     return <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>;
   };
@@ -259,14 +221,8 @@ export default function BookingsPage() {
               const catRooms = availRooms.filter(r => r.category === cat);
               if (catRooms.length === 0) return null;
               return (
-                <optgroup key={cat} label={
-                  cat === 1 ? 'Category 1 — Up to Lt Col' :
-                  cat === 2 ? 'Category 2 — Colonel & Brigadier' :
-                  'Category 3 — Brigadier & above'
-                }>
-                  {catRooms.map(r => (
-                    <option key={r._id} value={r._id}>{r.name} ({r.number})</option>
-                  ))}
+                <optgroup key={cat} label={cat === 1 ? 'Category 1 — Up to Lt Col' : cat === 2 ? 'Category 2 — Colonel & Brigadier' : 'Category 3 — Brigadier & above'}>
+                  {catRooms.map(r => <option key={r._id} value={r._id}>{r.name} ({r.number})</option>)}
                 </optgroup>
               );
             })}
@@ -279,15 +235,13 @@ export default function BookingsPage() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>Bookings</h2>
-        <p style={styles.pageSub}>Manage approvals, room assignment and cancellations</p>
+        <p style={styles.pageSub}>Manage approvals, room assignment and cancellations. Tap a guest name to see full details.</p>
       </div>
 
       <div style={styles.filterRow}>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.sel}>
           <option value="">All statuses</option>
-          {['Pending', 'Approved', 'Checked In', 'Checked Out', 'Cancelled', 'Rejected'].map(s => (
-            <option key={s}>{s}</option>
-          ))}
+          {['Pending', 'Approved', 'Checked In', 'Checked Out', 'Cancelled', 'Rejected'].map(s => <option key={s}>{s}</option>)}
         </select>
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={styles.sel}>
           <option value="">All categories</option>
@@ -310,16 +264,16 @@ export default function BookingsPage() {
             {bookings.map(b => (
               <tr key={b._id}>
                 <td style={{ ...styles.td, color: 'var(--text-3)', fontSize: 12 }}>{b.ref}</td>
-                <td style={{ ...styles.td, fontWeight: 500 }}>{b.officer.name}</td>
-                <td style={{ ...styles.td, color: 'var(--text-2)', fontSize: 12 }}>
-                  {b.officer.rank}<br />{b.officer.unit}
+                <td style={{ ...styles.td, fontWeight: 500 }}>
+                  <span
+                    style={{ cursor: 'pointer', color: '#185FA5', textDecoration: 'underline' }}
+                    onClick={() => setDetailPopup(b)}>
+                    {b.officer.name}
+                  </span>
                 </td>
+                <td style={{ ...styles.td, color: 'var(--text-2)', fontSize: 12 }}>{b.officer.rank}<br />{b.officer.unit}</td>
                 <td style={styles.td}>
-                  <span style={{
-                    fontSize: 11, padding: '2px 7px', borderRadius: 99,
-                    background: ['', 'var(--blue-bg)', 'var(--amber-bg)', 'var(--green-bg)'][b.category],
-                    color: ['', 'var(--blue-text)', 'var(--amber-text)', 'var(--green-text)'][b.category],
-                  }}>
+                  <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 99, background: ['', 'var(--blue-bg)', 'var(--amber-bg)', 'var(--green-bg)'][b.category], color: ['', 'var(--blue-text)', 'var(--amber-text)', 'var(--green-text)'][b.category] }}>
                     {CAT_LABELS[b.category]}
                   </span>
                 </td>
@@ -341,6 +295,47 @@ export default function BookingsPage() {
         </table>
       </div>
 
+      {/* Guest detail popup */}
+      {detailPopup && (
+        <div style={overlay} onClick={() => setDetailPopup(null)}>
+          <div style={popupBox} onClick={e => e.stopPropagation()}>
+            <div style={popupHeader}>
+              <div style={popupTitle}>Guest Details — {detailPopup.ref}</div>
+              <button style={closeBtn} onClick={() => setDetailPopup(null)}>✕</button>
+            </div>
+            <div style={popupBody}>
+              {[
+                ['Full Name',     `${detailPopup.officer.rank} ${detailPopup.officer.name}`],
+                ['Unit',          detailPopup.officer.unit],
+                ['Mobile',        detailPopup.officer.mobile],
+                ['Email',         detailPopup.officer.email || '—'],
+                ['ID Type',       detailPopup.officer.idType || '—'],
+                ['ID Number',     detailPopup.officer.idNumber || '—'],
+                ['Arrival Time',  detailPopup.officer.arrivalTime || '—'],
+                ['Check-in',      detailPopup.checkin],
+                ['Check-out',     detailPopup.checkout],
+                ['Room',          detailPopup.room ? `${detailPopup.room.name} (${detailPopup.room.number})` : 'Not assigned'],
+                ['Status',        detailPopup.status],
+              ].map(([label, value]) => (
+                <div key={label} style={detailRow}>
+                  <span style={detailLabel}>{label}</span>
+                  <span style={{ ...detailVal, color: label === 'Mobile' ? '#185FA5' : '#1A1917', fontWeight: label === 'Mobile' ? 600 : 400 }}>{value}</span>
+                </div>
+              ))}
+              {detailPopup.cancelReason && (
+                <div style={detailRow}>
+                  <span style={detailLabel}>Cancel Reason</span>
+                  <span style={{ ...detailVal, color: '#A32D2D' }}>{detailPopup.cancelReason}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 20px 16px' }}>
+              <button style={doneBtn} onClick={() => setDetailPopup(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Approve Modal */}
       {modal?.type === 'approve' && (
         <Modal title="Approve & assign room" onClose={closeModal}>
@@ -361,15 +356,9 @@ export default function BookingsPage() {
           ) : (
             <>
               <div style={doneBox}>✅ Booking approved successfully!</div>
-              <WhatsAppBox
-                mobile={modal.booking.officer.mobile}
-                message={modal.whatsappMsg}
-                onConfirmed={setMsgConfirmed}
-              />
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} onConfirmed={setMsgConfirmed} />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={closeModal}>
-                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
-                </button>
+                <button style={s.mBtn('blue')} onClick={closeModal}>{msgConfirmed ? '✓ Done — Message Sent' : 'Done'}</button>
               </ModalActions>
             </>
           )}
@@ -414,23 +403,15 @@ export default function BookingsPage() {
               <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
               <ModalActions>
                 <button style={s.mBtn('gray')} onClick={closeModal}>Cancel</button>
-                <button style={s.mBtn('red')} onClick={doReject} disabled={loading}>
-                  {loading ? 'Saving…' : 'Confirm rejection'}
-                </button>
+                <button style={s.mBtn('red')} onClick={doReject} disabled={loading}>{loading ? 'Saving…' : 'Confirm rejection'}</button>
               </ModalActions>
             </>
           ) : (
             <>
               <div style={doneBox}>✅ Booking rejected.</div>
-              <WhatsAppBox
-                mobile={modal.booking.officer.mobile}
-                message={modal.whatsappMsg}
-                onConfirmed={setMsgConfirmed}
-              />
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} onConfirmed={setMsgConfirmed} />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={closeModal}>
-                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
-                </button>
+                <button style={s.mBtn('blue')} onClick={closeModal}>{msgConfirmed ? '✓ Done — Message Sent' : 'Done'}</button>
               </ModalActions>
             </>
           )}
@@ -455,23 +436,15 @@ export default function BookingsPage() {
               </div>
               <ModalActions>
                 <button style={s.mBtn('gray')} onClick={closeModal}>Go back</button>
-                <button style={s.mBtn('red')} onClick={doCancel} disabled={loading}>
-                  {loading ? 'Saving…' : 'Confirm cancellation'}
-                </button>
+                <button style={s.mBtn('red')} onClick={doCancel} disabled={loading}>{loading ? 'Saving…' : 'Confirm cancellation'}</button>
               </ModalActions>
             </>
           ) : (
             <>
               <div style={doneBox}>✅ Booking cancelled.</div>
-              <WhatsAppBox
-                mobile={modal.booking.officer.mobile}
-                message={modal.whatsappMsg}
-                onConfirmed={setMsgConfirmed}
-              />
+              <WhatsAppBox mobile={modal.booking.officer.mobile} message={modal.whatsappMsg} onConfirmed={setMsgConfirmed} />
               <ModalActions>
-                <button style={s.mBtn('blue')} onClick={closeModal}>
-                  {msgConfirmed ? '✓ Done — Message Sent' : 'Done'}
-                </button>
+                <button style={s.mBtn('blue')} onClick={closeModal}>{msgConfirmed ? '✓ Done — Message Sent' : 'Done'}</button>
               </ModalActions>
             </>
           )}
@@ -481,11 +454,7 @@ export default function BookingsPage() {
   );
 }
 
-const doneBox = {
-  background: '#EAF3DE', border: '0.5px solid #97C459',
-  borderRadius: 8, padding: '10px 14px',
-  fontSize: 13, color: '#3B6D11', marginBottom: 4,
-};
+const doneBox = { background: '#EAF3DE', border: '0.5px solid #97C459', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#3B6D11', marginBottom: 4 };
 
 function InfoRow({ label, value }) {
   return (
@@ -504,51 +473,27 @@ const s = {
   abt: (color) => ({
     background: 'none',
     border: `0.5px solid ${color === 'green' ? '#1D9E75' : color === 'red' ? '#E24B4A' : '#185FA5'}`,
-    borderRadius: 'var(--radius-sm)',
-    padding: '4px 10px', fontSize: 12,
+    borderRadius: 'var(--radius-sm)', padding: '4px 10px', fontSize: 12,
     color: color === 'green' ? '#1D9E75' : color === 'red' ? '#E24B4A' : '#185FA5',
     marginRight: 4, cursor: 'pointer', whiteSpace: 'nowrap',
   }),
   mBtn: (variant) => {
-    const map = {
-      blue: { bg: 'var(--blue)', color: '#fff' },
-      red: { bg: 'var(--red)', color: '#fff' },
-      gray: { bg: 'var(--surface)', color: 'var(--text-1)', border: '0.5px solid var(--border-md)' },
-    };
+    const map = { blue: { bg: 'var(--blue)', color: '#fff' }, red: { bg: 'var(--red)', color: '#fff' }, gray: { bg: 'var(--surface)', color: 'var(--text-1)', border: '0.5px solid var(--border-md)' } };
     const v = map[variant] || map.gray;
-    return {
-      padding: '8px 18px', fontSize: 13, borderRadius: 'var(--radius-md)',
-      cursor: 'pointer', border: v.border || 'none',
-      background: v.bg, color: v.color, fontFamily: 'inherit',
-    };
+    return { padding: '8px 18px', fontSize: 13, borderRadius: 'var(--radius-md)', cursor: 'pointer', border: v.border || 'none', background: v.bg, color: v.color, fontFamily: 'inherit' };
   },
 };
 
 const styles = {
   pageHeader: { marginBottom: 20 },
-  pageTitle: { fontSize: 22, fontWeight: 500, color: 'var(--text-1)' },
-  pageSub: { fontSize: 13, color: 'var(--text-3)', marginTop: 4 },
-  filterRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  sel: {
-    fontSize: 13, padding: '7px 10px',
-    border: '0.5px solid var(--border-md)',
-    borderRadius: 'var(--radius-md)',
-    background: 'var(--surface)', color: 'var(--text-1)',
-  },
-  card: {
-    background: 'var(--surface)', border: '0.5px solid var(--border)',
-    borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-  },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th: {
-    textAlign: 'left', padding: '9px 12px', fontSize: 12,
-    color: 'var(--text-3)', borderBottom: '0.5px solid var(--border)', fontWeight: 500,
-  },
-  td: { padding: '10px 12px', borderBottom: '0.5px solid var(--border)', color: 'var(--text-1)', verticalAlign: 'middle' },
-  label: { fontSize: 12, fontWeight: 500, color: 'var(--text-2)' },
-  input: {
-    display: 'block', width: '100%', padding: '8px 12px', fontSize: 13,
-    border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-md)',
-    background: 'var(--surface)', color: 'var(--text-1)', outline: 'none',
-  },
+  pageTitle:  { fontSize: 22, fontWeight: 500, color: 'var(--text-1)' },
+  pageSub:    { fontSize: 13, color: 'var(--text-3)', marginTop: 4 },
+  filterRow:  { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  sel:        { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-1)' },
+  card:       { background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' },
+  table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:         { textAlign: 'left', padding: '9px 12px', fontSize: 12, color: 'var(--text-3)', borderBottom: '0.5px solid var(--border)', fontWeight: 500 },
+  td:         { padding: '10px 12px', borderBottom: '0.5px solid var(--border)', color: 'var(--text-1)', verticalAlign: 'middle' },
+  label:      { fontSize: 12, fontWeight: 500, color: 'var(--text-2)' },
+  input:      { display: 'block', width: '100%', padding: '8px 12px', fontSize: 13, border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-1)', outline: 'none' },
 };
