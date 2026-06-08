@@ -171,7 +171,7 @@ export default function RoomsPage() {
     const booking = bookings.find(b =>
       b.room?._id === room._id &&
       ['Approved', 'Checked In'].includes(b.status) &&
-      b.checkin <= date && b.checkout >= date
+      b.checkin <= date && b.checkout > date
     );
     if (booking) return {
       status: 'occupied',
