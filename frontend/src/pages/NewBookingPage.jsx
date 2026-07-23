@@ -2,15 +2,42 @@ import { useState } from 'react';
 import { api } from '../utils/api.js';
 
 const RANKS = [
-  { value: 1, label: 'Lt' },
-  { value: 1, label: 'Capt' },
-  { value: 1, label: 'Major' },
-  { value: 1, label: 'Lt Col' },
-  { value: 2, label: 'Colonel' },
-  { value: 2, label: 'Brigadier' },
-  { value: 3, label: 'Maj Gen' },
-  { value: 3, label: 'Lt Gen' },
-  { value: 3, label: 'General' },
+  // Indian Army
+  { value: 1, label: 'Lt',        service: 'army' },
+  { value: 1, label: 'Capt',      service: 'army' },
+  { value: 1, label: 'Major',     service: 'army' },
+  { value: 1, label: 'Lt Col',    service: 'army' },
+  { value: 2, label: 'Colonel',   service: 'army' },
+  { value: 2, label: 'Brigadier', service: 'army' },
+  { value: 3, label: 'Maj Gen',   service: 'army' },
+  { value: 3, label: 'Lt Gen',    service: 'army' },
+  { value: 3, label: 'General',   service: 'army' },
+  // Indian Navy
+  { value: 1, label: 'Sub Lieutenant', service: 'navy' },
+  { value: 1, label: 'Lieutenant',     service: 'navy' },
+  { value: 1, label: 'Lt Commander',   service: 'navy' },
+  { value: 1, label: 'Commander',      service: 'navy' },
+  { value: 2, label: 'Captain (IN)',   service: 'navy' },
+  { value: 2, label: 'Commodore',      service: 'navy' },
+  { value: 3, label: 'Rear Admiral',   service: 'navy' },
+  { value: 3, label: 'Vice Admiral',   service: 'navy' },
+  { value: 3, label: 'Admiral',        service: 'navy' },
+  // Indian Air Force
+  { value: 1, label: 'Flying Officer',     service: 'iaf' },
+  { value: 1, label: 'Flight Lieutenant',  service: 'iaf' },
+  { value: 1, label: 'Sqn Ldr',           service: 'iaf' },
+  { value: 1, label: 'Wg Cdr',            service: 'iaf' },
+  { value: 2, label: 'Gp Capt',           service: 'iaf' },
+  { value: 2, label: 'Air Commodore',     service: 'iaf' },
+  { value: 3, label: 'Air Vice Marshal',  service: 'iaf' },
+  { value: 3, label: 'Air Marshal',       service: 'iaf' },
+  { value: 3, label: 'Air Chief Marshal', service: 'iaf' },
+];
+
+const RANK_GROUPS = [
+  { key: 'army', label: 'Indian Army' },
+  { key: 'navy', label: 'Indian Navy' },
+  { key: 'iaf',  label: 'Indian Air Force' },
 ];
 
 const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
@@ -127,13 +154,21 @@ export default function NewBookingPage() {
               <input style={inputStyle(fieldError('name'))} value={form.name}
                 onChange={set('name')} onBlur={() => touch('name')} placeholder="e.g. Rajiv Kumar" />
             </Field>
+
             <Field label="Rank" error={fieldError('rank')} required>
               <select style={inputStyle(fieldError('rank'))} value={form.rank}
                 onChange={set('rank')} onBlur={() => touch('rank')}>
                 <option value="">Select rank</option>
-                {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
+                {RANK_GROUPS.map(group => (
+                  <optgroup key={group.key} label={group.label}>
+                    {RANKS.filter(r => r.service === group.key).map(r => (
+                      <option key={`${group.key}-${r.label}`} value={r.label}>{r.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </Field>
+
             <Field label="Unit / Organisation" error={fieldError('unit')} required>
               <input style={inputStyle(fieldError('unit'))} value={form.unit}
                 onChange={set('unit')} onBlur={() => touch('unit')} placeholder="e.g. 5 Rajput Regiment" />
@@ -179,7 +214,6 @@ export default function NewBookingPage() {
             </Field>
           </div>
 
-          {/* Nights counter + checkout note */}
           {form.checkin && form.checkout && nights > 0 && (
             <div style={s.nightsBox}>
               <div style={s.nightsCount}>
@@ -192,7 +226,6 @@ export default function NewBookingPage() {
             </div>
           )}
 
-          {/* Show checkout note even before dates filled */}
           {!(form.checkin && form.checkout && nights > 0) && (
             <div style={s.checkoutNoteAlone}>
               Check-out time is <strong>1000h</strong>
