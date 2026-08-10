@@ -78,11 +78,11 @@ const ws = {
 function buildMessage(type, booking) {
   switch (type) {
     case 'approve':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
     case 'reject':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
     case 'cancel':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
     default:
       return '';
   }
