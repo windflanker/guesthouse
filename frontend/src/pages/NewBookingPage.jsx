@@ -2,58 +2,24 @@ import { useState } from 'react';
 import { api } from '../utils/api.js';
 
 const RANKS = [
-  // Indian Army
-  { value: 1, label: 'Lt',        service: 'army' },
-  { value: 1, label: 'Capt',      service: 'army' },
-  { value: 1, label: 'Major',     service: 'army' },
-  { value: 1, label: 'Lt Col',    service: 'army' },
-  { value: 2, label: 'Colonel',   service: 'army' },
-  { value: 2, label: 'Brigadier', service: 'army' },
-  { value: 3, label: 'Maj Gen',   service: 'army' },
-  { value: 3, label: 'Lt Gen',    service: 'army' },
-  { value: 3, label: 'General',   service: 'army' },
-  // Indian Navy
-  { value: 1, label: 'Sub Lieutenant', service: 'navy' },
-  { value: 1, label: 'Lieutenant',     service: 'navy' },
-  { value: 1, label: 'Lt Commander',   service: 'navy' },
-  { value: 1, label: 'Commander',      service: 'navy' },
-  { value: 2, label: 'Captain (IN)',   service: 'navy' },
-  { value: 2, label: 'Commodore',      service: 'navy' },
-  { value: 3, label: 'Rear Admiral',   service: 'navy' },
-  { value: 3, label: 'Vice Admiral',   service: 'navy' },
-  { value: 3, label: 'Admiral',        service: 'navy' },
-  // Indian Air Force
-  { value: 1, label: 'Flying Officer',     service: 'iaf' },
-  { value: 1, label: 'Flight Lieutenant',  service: 'iaf' },
-  { value: 1, label: 'Sqn Ldr',           service: 'iaf' },
-  { value: 1, label: 'Wg Cdr',            service: 'iaf' },
-  { value: 2, label: 'Gp Capt',           service: 'iaf' },
-  { value: 2, label: 'Air Commodore',     service: 'iaf' },
-  { value: 3, label: 'Air Vice Marshal',  service: 'iaf' },
-  { value: 3, label: 'Air Marshal',       service: 'iaf' },
-  { value: 3, label: 'Air Chief Marshal', service: 'iaf' },
-];
-
-const RANK_GROUPS = [
-  { key: 'army', label: 'Indian Army' },
-  { key: 'navy', label: 'Indian Navy' },
-  { key: 'iaf',  label: 'Indian Air Force' },
+  { value: 1, label: 'Lt' },
+  { value: 1, label: 'Capt' },
+  { value: 1, label: 'Major' },
+  { value: 1, label: 'Lt Col' },
+  { value: 2, label: 'Colonel' },
+  { value: 2, label: 'Brigadier' },
+  { value: 3, label: 'Maj Gen' },
+  { value: 3, label: 'Lt Gen' },
+  { value: 3, label: 'General' },
 ];
 
 const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
 
-function calcNights(checkin, checkout) {
-  if (!checkin || !checkout) return 0;
-  const a = new Date(checkin);
-  const b = new Date(checkout);
-  const diff = Math.round((b - a) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : 0;
-}
-
 export default function NewBookingPage() {
   const [form, setForm] = useState({
     name: '', rank: '', unit: '', mobile: '', email: '',
-    idType: '', idNumber: '', checkin: '', checkout: '', arrivalTime: '',
+    idType: '', idNumber: '', checkin: '', checkout: '',
+    arrivalTime: '', reference: '',
   });
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -61,19 +27,18 @@ export default function NewBookingPage() {
   const [error, setError] = useState('');
 
   const touch = (key) => setTouched(t => ({ ...t, [key]: true }));
-  const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Must be 10 digits' : '';
+
+  const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Error Mobile Number' : '';
 
   const fieldError = (key) => {
     if (!touched[key]) return '';
     if (key === 'mobile') return mobileError;
-    if (key === 'checkout' && form.checkin && form.checkout && form.checkout <= form.checkin)
-      return 'Check-out must be after check-in';
     if (REQUIRED_FIELDS.includes(key) && !form[key]) return 'This field is required';
     return '';
   };
 
-  const nights = calcNights(form.checkin, form.checkout);
-  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile) && nights > 0;
+  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile);
+
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
@@ -81,6 +46,7 @@ export default function NewBookingPage() {
     const allTouched = REQUIRED_FIELDS.reduce((acc, k) => ({ ...acc, [k]: true }), {});
     setTouched(allTouched);
     if (!isFormValid) return;
+
     setLoading(true); setError('');
     try {
       await api.post('/bookings', {
@@ -89,6 +55,7 @@ export default function NewBookingPage() {
           mobile: form.mobile, email: form.email,
           idType: form.idType, idNumber: form.idNumber,
           arrivalTime: form.arrivalTime,
+          reference: form.reference,
         },
         category: RANKS.find(r => r.label === form.rank)?.value || 1,
         checkin: form.checkin,
@@ -110,11 +77,11 @@ export default function NewBookingPage() {
           <div style={{ fontSize: 48, margin: '8px 0' }}>✓</div>
           <h2 style={s.heading}>Request Submitted</h2>
           <p style={{ fontSize: 14, color: '#5A5855', marginBottom: 24, textAlign: 'center' }}>
-            Your booking request is pending admin approval. You will receive an SMS once approved.
+            Your booking request is pending admin approval. You will be contacted once approved.
           </p>
           <button style={s.submitBtn} onClick={() => {
             setSubmitted(false);
-            setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'' });
+            setForm({ name:'',rank:'',unit:'',mobile:'',email:'',idType:'',idNumber:'',checkin:'',checkout:'',arrivalTime:'',reference:'' });
             setTouched({});
           }}>
             Submit Another Request
@@ -142,6 +109,10 @@ export default function NewBookingPage() {
               <span style={s.guestBannerLabel}>Unit</span>
               <span style={s.guestBannerVal}>{form.unit}</span>
             </div>}
+            {form.reference && <div style={s.guestBannerRow}>
+              <span style={s.guestBannerLabel}>Reference</span>
+              <span style={s.guestBannerVal}>{form.reference}</span>
+            </div>}
           </div>
         )}
 
@@ -149,26 +120,18 @@ export default function NewBookingPage() {
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }} noValidate>
           <div style={s.sectionLabel}>Personal Details</div>
-          <div className="form-grid" style={s.grid}>
+          <div style={s.grid}>
             <Field label="Full Name" error={fieldError('name')} required>
               <input style={inputStyle(fieldError('name'))} value={form.name}
                 onChange={set('name')} onBlur={() => touch('name')} placeholder="e.g. Rajiv Kumar" />
             </Field>
-
             <Field label="Rank" error={fieldError('rank')} required>
               <select style={inputStyle(fieldError('rank'))} value={form.rank}
                 onChange={set('rank')} onBlur={() => touch('rank')}>
                 <option value="">Select rank</option>
-                {RANK_GROUPS.map(group => (
-                  <optgroup key={group.key} label={group.label}>
-                    {RANKS.filter(r => r.service === group.key).map(r => (
-                      <option key={`${group.key}-${r.label}`} value={r.label}>{r.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
+                {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
               </select>
             </Field>
-
             <Field label="Unit / Organisation" error={fieldError('unit')} required>
               <input style={inputStyle(fieldError('unit'))} value={form.unit}
                 onChange={set('unit')} onBlur={() => touch('unit')} placeholder="e.g. 5 Rajput Regiment" />
@@ -196,10 +159,14 @@ export default function NewBookingPage() {
               <input style={inputStyle(fieldError('idNumber'))} value={form.idNumber}
                 onChange={set('idNumber')} onBlur={() => touch('idNumber')} placeholder="ID number" />
             </Field>
+            <Field label="Reference (name of person on whose reference)">
+              <input style={inputStyle('')} value={form.reference}
+                onChange={set('reference')} placeholder="e.g. Col A K Sharma, CO 5 Raj Rif" />
+            </Field>
           </div>
 
           <div style={{ ...s.sectionLabel, marginTop: 24 }}>Stay Details</div>
-          <div className="form-grid" style={s.grid}>
+          <div style={s.grid}>
             <Field label="Check-in Date" error={fieldError('checkin')} required>
               <input type="date" style={inputStyle(fieldError('checkin'))} value={form.checkin}
                 onChange={set('checkin')} onBlur={() => touch('checkin')} />
@@ -214,25 +181,8 @@ export default function NewBookingPage() {
             </Field>
           </div>
 
-          {form.checkin && form.checkout && nights > 0 && (
-            <div style={s.nightsBox}>
-              <div style={s.nightsCount}>
-                🌙 <strong>{nights} night{nights > 1 ? 's' : ''}</strong>
-                <span style={s.nightsDates}> &nbsp;({form.checkin} → {form.checkout})</span>
-              </div>
-              <div style={s.checkoutNote}>
-                Check-out time: <strong>1000h</strong>
-              </div>
-            </div>
-          )}
-
-          {!(form.checkin && form.checkout && nights > 0) && (
-            <div style={s.checkoutNoteAlone}>
-              Check-out time is <strong>1000h</strong>
-            </div>
-          )}
-
-          <button type="submit"
+          <button
+            type="submit"
             style={{ ...s.submitBtn, opacity: isFormValid ? 1 : 0.45, cursor: isFormValid ? 'pointer' : 'not-allowed' }}
             disabled={!isFormValid || loading}>
             {loading ? 'Submitting…' : 'Submit Booking Request'}
@@ -259,29 +209,23 @@ const inputStyle = (error) => ({
   padding: '9px 12px', fontSize: 14, width: '100%',
   border: `0.5px solid ${error ? '#E24B4A' : 'rgba(0,0,0,0.18)'}`,
   borderRadius: 10, outline: 'none',
-  background: error ? '#FFF5F5' : '#fff',
-  color: '#1A1917',
+  background: error ? '#FFF5F5' : '#fff', color: '#1A1917',
   boxShadow: error ? '0 0 0 3px rgba(226,75,74,0.1)' : 'none',
 });
 
 const s = {
-  page:             { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '24px 12px' },
-  card:             { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '28px 20px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  logo:             { width: 72, height: 72, objectFit: 'contain', marginBottom: 12 },
-  heading:          { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
-  sub:              { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
-  divider:          { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
-  guestBanner:      { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
-  guestBannerRow:   { display: 'flex', gap: 12, fontSize: 13 },
-  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 56 },
-  guestBannerVal:   { color: '#1A1917' },
-  errorBanner:      { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
-  sectionLabel:     { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
-  grid:             { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' },
-  nightsBox:        { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 },
-  nightsCount:      { fontSize: 15, color: '#185FA5' },
-  nightsDates:      { fontSize: 13, color: '#5A5855' },
-  checkoutNote:     { fontSize: 13, color: '#854F0B' },
-  checkoutNoteAlone:{ width: '100%', marginTop: 14, fontSize: 13, color: '#854F0B', background: '#FAEEDA', border: '0.5px solid #F5C97A', borderRadius: 8, padding: '10px 14px' },
-  submitBtn:        { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
+  page: { minHeight: '100vh', background: 'linear-gradient(135deg, #f7f6f2 0%, #e8e6df 100%)', display: 'flex', justifyContent: 'center', padding: '32px 16px' },
+  card: { background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 20, padding: '36px 40px', width: '100%', maxWidth: 700, alignSelf: 'flex-start', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  logo: { width: 80, height: 80, objectFit: 'contain', marginBottom: 12 },
+  heading: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 400, color: '#1A1917', marginBottom: 4, textAlign: 'center' },
+  sub: { fontSize: 12, color: '#9A9895', letterSpacing: '0.04em', textTransform: 'uppercase' },
+  divider: { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '16px 0 20px', opacity: 0.4 },
+  guestBanner: { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 4 },
+  guestBannerRow: { display: 'flex', gap: 12, fontSize: 13 },
+  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 70 },
+  guestBannerVal: { color: '#1A1917' },
+  errorBanner: { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
+  sectionLabel: { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%' },
+  submitBtn: { marginTop: 28, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, transition: 'all 0.15s', width: '100%' },
 };
