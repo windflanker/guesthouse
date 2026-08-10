@@ -27,7 +27,8 @@ function toDateStr(d) { return d.toISOString().split('T')[0]; }
 
 const emptyForm = {
   name: '', rank: '', unit: '', mobile: '', email: '',
-  idType: '', idNumber: '', checkin: '', checkout: '', arrivalTime: '',
+  idType: '', idNumber: '', checkin: '', checkout: '',
+  arrivalTime: '', reference: '',
 };
 
 function GuestForm({ form, setForm, errors, room, onSubmit, onCancel, loading, submitLabel }) {
@@ -50,14 +51,9 @@ function GuestForm({ form, setForm, errors, room, onSubmit, onCancel, loading, s
 
       {form.name && form.rank && (
         <div style={gf.banner}>
-          <div style={gf.bannerRow}>
-            <span style={gf.bannerLabel}>Officer</span>
-            <span style={gf.bannerVal}>{form.rank} {form.name}</span>
-          </div>
-          {form.unit && <div style={gf.bannerRow}>
-            <span style={gf.bannerLabel}>Unit</span>
-            <span style={gf.bannerVal}>{form.unit}</span>
-          </div>}
+          <div style={gf.bannerRow}><span style={gf.bannerLabel}>Officer</span><span style={gf.bannerVal}>{form.rank} {form.name}</span></div>
+          {form.unit && <div style={gf.bannerRow}><span style={gf.bannerLabel}>Unit</span><span style={gf.bannerVal}>{form.unit}</span></div>}
+          {form.reference && <div style={gf.bannerRow}><span style={gf.bannerLabel}>Reference</span><span style={gf.bannerVal}>{form.reference}</span></div>}
         </div>
       )}
 
@@ -96,6 +92,9 @@ function GuestForm({ form, setForm, errors, room, onSubmit, onCancel, loading, s
         <Field label="Govt ID Number">
           <input style={inp('')} value={form.idNumber} onChange={setField('idNumber')} placeholder="ID number" />
         </Field>
+        <Field label="Reference (name of person on whose reference)">
+          <input style={inp('')} value={form.reference} onChange={setField('reference')} placeholder="e.g. Col A K Sharma, CO 5 Raj Rif" />
+        </Field>
       </div>
 
       <div style={{ ...gf.sectionLabel, marginTop: 16 }}>Stay Details</div>
@@ -133,7 +132,7 @@ const gf = {
   roomNameTag: { fontSize: 12, color: '#5A5855' },
   banner:      { background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 3 },
   bannerRow:   { display: 'flex', gap: 10, fontSize: 13 },
-  bannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 52 },
+  bannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 70 },
   bannerVal:   { color: '#1A1917' },
   errorBox:    { background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 12 },
   sectionLabel:{ fontSize: 11, fontWeight: 600, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 },
@@ -155,10 +154,7 @@ export default function RoomsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [r, b] = await Promise.all([
-        api.get('/rooms'),
-        api.get('/bookings'),
-      ]);
+      const [r, b] = await Promise.all([api.get('/rooms'), api.get('/bookings')]);
       setRooms([...r]);
       setBookings([...b]);
     } catch (err) { console.error(err); }
@@ -217,6 +213,14 @@ export default function RoomsPage() {
     return errs;
   };
 
+  const buildOfficer = () => ({
+    name: form.name, rank: form.rank, unit: form.unit,
+    mobile: form.mobile, email: form.email,
+    idType: form.idType, idNumber: form.idNumber,
+    arrivalTime: form.arrivalTime,
+    reference: form.reference,
+  });
+
   const handleAssign = async () => {
     const errs = validate();
     setErrors(errs);
@@ -224,17 +228,7 @@ export default function RoomsPage() {
     setFormLoading(true);
     try {
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
-      const booking = await api.post('/bookings', {
-        officer: {
-          name: form.name, rank: form.rank, unit: form.unit,
-          mobile: form.mobile, email: form.email,
-          idType: form.idType, idNumber: form.idNumber,
-          arrivalTime: form.arrivalTime,
-        },
-        category,
-        checkin: form.checkin,
-        checkout: form.checkout,
-      });
+      const booking = await api.post('/bookings', { officer: buildOfficer(), category, checkin: form.checkin, checkout: form.checkout });
       await api.patch(`/bookings/${booking._id}/approve`, { roomId: modal.room._id });
       await load();
       setSuccess(`✅ ${modal.room.name} assigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
@@ -250,26 +244,12 @@ export default function RoomsPage() {
     setFormLoading(true);
     try {
       if (modal.info.booking) {
-        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
-          cancelReason: `Room reassigned to ${form.name} by admin`,
-        });
+        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, { cancelReason: `Room reassigned to ${form.name} by admin` });
       }
-      await api.patch(`/rooms/${modal.room._id}`, {
-        status: 'available', currentGuest: null, currentBooking: null,
-      });
+      await api.patch(`/rooms/${modal.room._id}`, { status: 'available', currentGuest: null, currentBooking: null });
       await new Promise(r => setTimeout(r, 800));
       const category = RANKS.find(r => r.label === form.rank)?.value || 1;
-      const newBooking = await api.post('/bookings', {
-        officer: {
-          name: form.name, rank: form.rank, unit: form.unit,
-          mobile: form.mobile, email: form.email,
-          idType: form.idType, idNumber: form.idNumber,
-          arrivalTime: form.arrivalTime,
-        },
-        category,
-        checkin: form.checkin,
-        checkout: form.checkout,
-      });
+      const newBooking = await api.post('/bookings', { officer: buildOfficer(), category, checkin: form.checkin, checkout: form.checkout });
       await api.patch(`/bookings/${newBooking._id}/approve`, { roomId: modal.room._id });
       await load();
       setSuccess(`✅ ${modal.room.name} reassigned to ${form.rank} ${form.name} from ${form.checkin} to ${form.checkout}.`);
@@ -283,13 +263,9 @@ export default function RoomsPage() {
     setFormLoading(true);
     try {
       if (modal.info.booking) {
-        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, {
-          cancelReason: 'Room vacated by admin',
-        });
+        await api.patch(`/bookings/${modal.info.booking._id}/cancel`, { cancelReason: 'Room vacated by admin' });
       }
-      await api.patch(`/rooms/${modal.room._id}`, {
-        status: 'available', currentGuest: null, currentBooking: null,
-      });
+      await api.patch(`/rooms/${modal.room._id}`, { status: 'available', currentGuest: null, currentBooking: null });
       await load();
       setSuccess(`✅ ${modal.room.name} has been made vacant.`);
     } catch (err) {
@@ -316,9 +292,7 @@ export default function RoomsPage() {
 
       <div style={s.legend}>
         {[['Available','#1D9E75'],['Occupied','#E24B4A'],['Pending','#EF9F27']].map(([l,c]) => (
-          <div key={l} style={s.legendItem}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />{l}
-          </div>
+          <div key={l} style={s.legendItem}><div style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />{l}</div>
         ))}
         <div style={{ ...s.legendItem, marginLeft: 8, color: '#185FA5', fontSize: 11 }}>💡 Click any room to manage</div>
       </div>
@@ -392,15 +366,11 @@ export default function RoomsPage() {
               {modal.info.status !== 'available' && (
                 <div style={fs.tabs}>
                   <div style={modalMode === 'reassign' ? fs.tabActive : fs.tab}
-                    onClick={() => { setModalMode('reassign'); setErrors({}); }}>
-                    Reassign to New Guest
-                  </div>
+                    onClick={() => { setModalMode('reassign'); setErrors({}); }}>Reassign to New Guest</div>
                   <div style={modalMode === 'vacate-confirm'
                     ? { ...fs.tabActive, background: '#FCEBEB', color: '#A32D2D', borderColor: '#E24B4A' }
                     : { ...fs.tab, color: '#A32D2D' }}
-                    onClick={() => { setModalMode('vacate-confirm'); setErrors({}); }}>
-                    Make Vacant
-                  </div>
+                    onClick={() => { setModalMode('vacate-confirm'); setErrors({}); }}>Make Vacant</div>
                 </div>
               )}
 
@@ -449,19 +419,9 @@ function Field({ label, children, error, required }) {
   );
 }
 
-const inp = (error) => ({
-  padding: '7px 10px', fontSize: 13, width: '100%',
-  border: `0.5px solid ${error ? '#E24B4A' : 'rgba(0,0,0,0.18)'}`,
-  borderRadius: 8, outline: 'none',
-  background: error ? '#FFF5F5' : '#fff', color: '#1A1917',
-});
-
+const inp = (error) => ({ padding: '7px 10px', fontSize: 13, width: '100%', border: `0.5px solid ${error ? '#E24B4A' : 'rgba(0,0,0,0.18)'}`, borderRadius: 8, outline: 'none', background: error ? '#FFF5F5' : '#fff', color: '#1A1917' });
 const doneBox = { background: '#EAF3DE', border: '0.5px solid #97C459', borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#3B6D11' };
-const mBtn = (variant) => {
-  const map = { blue: { bg: '#185FA5', color: '#fff', border: 'none' }, gray: { bg: '#fff', color: '#1A1917', border: '0.5px solid rgba(0,0,0,0.18)' } };
-  const v = map[variant];
-  return { padding: '8px 18px', fontSize: 13, borderRadius: 10, cursor: 'pointer', background: v.bg, color: v.color, border: v.border, fontFamily: 'inherit' };
-};
+const mBtn = (variant) => { const map = { blue: { bg: '#185FA5', color: '#fff', border: 'none' }, gray: { bg: '#fff', color: '#1A1917', border: '0.5px solid rgba(0,0,0,0.18)' } }; const v = map[variant]; return { padding: '8px 18px', fontSize: 13, borderRadius: 10, cursor: 'pointer', background: v.bg, color: v.color, border: v.border, fontFamily: 'inherit' }; };
 
 const fs = {
   roomInfo:     { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' },
