@@ -23,7 +23,6 @@ const RANKS = [
   { group: 'Navy', value: 3, label: 'Vice Adm' },
   { group: 'Navy', value: 3, label: 'Admiral' },
   // Air Force
-  { group: 'Air Force', value: 1, label: 'Fg Offr' },
   { group: 'Air Force', value: 1, label: 'Flt Lt' },
   { group: 'Air Force', value: 1, label: 'Sqn Ldr' },
   { group: 'Air Force', value: 1, label: 'Wg Cdr' },
