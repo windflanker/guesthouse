@@ -2,15 +2,36 @@ import { useState } from 'react';
 import { api } from '../utils/api.js';
 
 const RANKS = [
-  { value: 1, label: 'Lt' },
-  { value: 1, label: 'Capt' },
-  { value: 1, label: 'Major' },
-  { value: 1, label: 'Lt Col' },
-  { value: 2, label: 'Colonel' },
-  { value: 2, label: 'Brigadier' },
-  { value: 3, label: 'Maj Gen' },
-  { value: 3, label: 'Lt Gen' },
-  { value: 3, label: 'General' },
+  // Army
+  { group: 'Army', value: 1, label: 'Lt' },
+  { group: 'Army', value: 1, label: 'Capt' },
+  { group: 'Army', value: 1, label: 'Major' },
+  { group: 'Army', value: 1, label: 'Lt Col' },
+  { group: 'Army', value: 2, label: 'Colonel' },
+  { group: 'Army', value: 2, label: 'Brigadier' },
+  { group: 'Army', value: 3, label: 'Maj Gen' },
+  { group: 'Army', value: 3, label: 'Lt Gen' },
+  { group: 'Army', value: 3, label: 'General' },
+  // Navy
+  { group: 'Navy', value: 1, label: 'Sub Lt' },
+  { group: 'Navy', value: 1, label: 'Lt (N)' },
+  { group: 'Navy', value: 1, label: 'Lt Cdr' },
+  { group: 'Navy', value: 1, label: 'Cdr' },
+  { group: 'Navy', value: 2, label: 'Capt (N)' },
+  { group: 'Navy', value: 2, label: 'Commodore' },
+  { group: 'Navy', value: 3, label: 'Rear Adm' },
+  { group: 'Navy', value: 3, label: 'Vice Adm' },
+  { group: 'Navy', value: 3, label: 'Admiral' },
+  // Air Force
+  { group: 'Air Force', value: 1, label: 'Fg Offr' },
+  { group: 'Air Force', value: 1, label: 'Flt Lt' },
+  { group: 'Air Force', value: 1, label: 'Sqn Ldr' },
+  { group: 'Air Force', value: 1, label: 'Wg Cdr' },
+  { group: 'Air Force', value: 2, label: 'Gp Capt' },
+  { group: 'Air Force', value: 2, label: 'Air Cdre' },
+  { group: 'Air Force', value: 3, label: 'AVM' },
+  { group: 'Air Force', value: 3, label: 'Air Mshl' },
+  { group: 'Air Force', value: 3, label: 'CAS' },
 ];
 
 const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
@@ -129,7 +150,13 @@ export default function NewBookingPage() {
               <select style={inputStyle(fieldError('rank'))} value={form.rank}
                 onChange={set('rank')} onBlur={() => touch('rank')}>
                 <option value="">Select rank</option>
-                {RANKS.map(r => <option key={r.label} value={r.label}>{r.label}</option>)}
+                {['Army', 'Navy', 'Air Force'].map(grp => (
+                  <optgroup key={grp} label={grp}>
+                    {RANKS.filter(r => r.group === grp).map(r => (
+                      <option key={r.label} value={r.label}>{r.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </Field>
             <Field label="Unit / Organisation" error={fieldError('unit')} required>
