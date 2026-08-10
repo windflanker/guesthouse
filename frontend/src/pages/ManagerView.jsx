@@ -61,12 +61,8 @@ export default function ManagerView() {
 
       <div style={s.datePicker}>
         <span style={s.dateLabel}>Checking availability for:</span>
-        <input type="date" value={selectedDate}
-          onChange={e => setSelectedDate(e.target.value)}
-          style={s.dateInput} />
-        {!isToday && (
-          <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>
-        )}
+        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} style={s.dateInput} />
+        {!isToday && <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>}
         <div style={s.dateSummary}>{availCount} of {rooms.length} rooms available on {selectedDate}</div>
       </div>
 
@@ -83,12 +79,8 @@ export default function ManagerView() {
         <div key={cat} style={{ marginBottom: 28 }}>
           <div style={s.catLabel}>
             {CAT[cat].label}
-            <span style={{ ...s.catTag, background: CAT[cat].bg, color: CAT[cat].text }}>
-              {rooms.filter(r => r.category === cat).length} rooms
-            </span>
-            <span style={{ ...s.catTag, background: '#EAF3DE', color: '#3B6D11', marginLeft: 4 }}>
-              {rooms.filter(r => r.category === cat && getRoomInfo(r).status === 'available').length} available
-            </span>
+            <span style={{ ...s.catTag, background: CAT[cat].bg, color: CAT[cat].text }}>{rooms.filter(r => r.category === cat).length} rooms</span>
+            <span style={{ ...s.catTag, background: '#EAF3DE', color: '#3B6D11', marginLeft: 4 }}>{rooms.filter(r => r.category === cat && getRoomInfo(r).status === 'available').length} available</span>
           </div>
 
           <div style={s.grid}>
@@ -109,11 +101,7 @@ export default function ManagerView() {
                       <div style={s.roomCat}>{CAT[room.category].label.split(' — ')[1]}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{
-                        fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500,
-                        background: isOccupied ? '#FCEBEB' : '#EAF3DE',
-                        color: isOccupied ? '#A32D2D' : '#3B6D11',
-                      }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500, background: isOccupied ? '#FCEBEB' : '#EAF3DE', color: isOccupied ? '#A32D2D' : '#3B6D11' }}>
                         {isOccupied ? 'Occupied' : 'Available'}
                       </span>
                       {isOccupied && <div style={{ fontSize: 10, color: '#185FA5', marginTop: 4 }}>{isExpanded ? '▲ Less' : '▼ Details'}</div>}
@@ -125,6 +113,7 @@ export default function ManagerView() {
                       <div style={s.qRow}><span style={s.qLabel}>Guest</span><span style={s.qVal}>{info.officer.rank} {info.officer.name}</span></div>
                       <div style={s.qRow}><span style={s.qLabel}>Mobile</span><span style={{ ...s.qVal, color: '#185FA5', fontWeight: 600 }}>{info.officer.mobile}</span></div>
                       <div style={s.qRow}><span style={s.qLabel}>Stay</span><span style={s.qVal}>{info.checkin} → {info.checkout}</span></div>
+                      {info.officer.reference && <div style={s.qRow}><span style={s.qLabel}>Reference</span><span style={s.qVal}>{info.officer.reference}</span></div>}
                     </div>
                   )}
 
@@ -140,6 +129,7 @@ export default function ManagerView() {
                         ['ID Type',       info.officer.idType || '—'],
                         ['ID Number',     info.officer.idNumber || '—'],
                         ['Arrival Time',  info.officer.arrivalTime || '—'],
+                        ['Reference',     info.officer.reference || '—'],
                         ['Check-in',      info.checkin],
                         ['Check-out',     info.checkout],
                       ].map(([label, value]) => (
@@ -187,7 +177,7 @@ const s = {
   roomCat:     { fontSize: 11, color: '#9A9895' },
   quickInfo:   { background: '#F7F6F2', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 },
   qRow:        { display: 'flex', justifyContent: 'space-between', fontSize: 12 },
-  qLabel:      { color: '#9A9895', minWidth: 50 },
+  qLabel:      { color: '#9A9895', minWidth: 60 },
   qVal:        { color: '#1A1917', textAlign: 'right' },
   fullDetails: { background: '#EEF4FF', border: '0.5px solid #BDD0F8', borderRadius: 8, padding: '12px 14px' },
   detailsTitle:{ fontSize: 11, fontWeight: 700, color: '#185FA5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 },
