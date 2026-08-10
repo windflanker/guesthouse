@@ -159,9 +159,9 @@ export default function NewBookingPage() {
               <input style={inputStyle(fieldError('idNumber'))} value={form.idNumber}
                 onChange={set('idNumber')} onBlur={() => touch('idNumber')} placeholder="ID number" />
             </Field>
-            <Field label="Reference (name of person on whose reference)">
+            <Field label="Reference">
               <input style={inputStyle('')} value={form.reference}
-                onChange={set('reference')} placeholder="e.g. Col A K Sharma, CO 5 Raj Rif" />
+                onChange={set('reference')} placeholder="Name of Officer" />
             </Field>
           </div>
 
