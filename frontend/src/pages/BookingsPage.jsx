@@ -182,6 +182,20 @@ export default function BookingsPage() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 768px) {
+          .bookings-table { font-size: 11px !important; }
+          .bookings-table th, .bookings-table td { padding: 6px 6px !important; }
+          .expanded-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 480px) {
+          .bookings-table th:nth-child(4),
+          .bookings-table td:nth-child(4),
+          .bookings-table th:nth-child(7),
+          .bookings-table td:nth-child(7) { display: none; }
+        }
+        .bookings-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      `}</style>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>Bookings</h2>
         <p style={styles.pageSub}>Click any row to see full details · Manage approvals and cancellations</p>
@@ -202,8 +216,8 @@ export default function BookingsPage() {
         </select>
       </div>
 
-      <div style={styles.card}>
-        <table style={styles.table}>
+      <div style={styles.card} className="bookings-wrapper">
+        <table style={styles.table} className="bookings-table">
           <thead>
             <tr>
               {['Ref', 'Officer', 'Rank / Unit', 'Reference', 'Cat', 'Room', 'Check-in', 'Check-out', 'Status', 'Actions'].map(h => (
@@ -254,7 +268,7 @@ export default function BookingsPage() {
                   <tr key={b._id + '-exp'}>
                     <td colSpan={10} style={styles.expandedRow}>
                       <div style={styles.expandedTitle}>Full Guest Details</div>
-                      <div style={styles.expandedGrid}>
+                      <div style={styles.expandedGrid} className="expanded-grid">
                         {[
                           ['Full Name',     b.officer.name],
                           ['Rank',          b.officer.rank],
