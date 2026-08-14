@@ -60,7 +60,7 @@ function GuestForm({ form, setForm, errors, room, onSubmit, onCancel, loading, s
       {errors.submit && <div style={gf.errorBox}>{errors.submit}</div>}
 
       <div style={gf.sectionLabel}>Personal Details</div>
-      <div style={gf.grid}>
+      <div style={gf.grid} className="form-grid">
         <Field label="Full Name" error={errors.name} required>
           <input style={inp(errors.name)} value={form.name} onChange={setField('name')} placeholder="e.g. Rajiv Kumar" />
         </Field>
@@ -98,7 +98,7 @@ function GuestForm({ form, setForm, errors, room, onSubmit, onCancel, loading, s
       </div>
 
       <div style={{ ...gf.sectionLabel, marginTop: 16 }}>Stay Details</div>
-      <div style={gf.grid}>
+      <div style={gf.grid} className="form-grid">
         <Field label="Check-in Date" error={errors.checkin} required>
           <input type="date" style={inp(errors.checkin)} value={form.checkin} onChange={setField('checkin')} />
         </Field>
@@ -278,16 +278,27 @@ export default function RoomsPage() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 768px) {
+          .rooms-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .rooms-datepicker { flex-wrap: wrap !important; gap: 8px !important; }
+          .rooms-datesummary { margin-left: 0 !important; width: 100% !important; text-align: center !important; }
+        }
+        @media (max-width: 480px) {
+          .rooms-grid { grid-template-columns: 1fr !important; }
+          .form-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <div style={s.pageHeader}>
         <h2 style={s.pageTitle}>Room Status</h2>
         <p style={s.pageSub}>Click any room to assign, reassign or vacate</p>
       </div>
 
-      <div style={s.datePicker}>
+      <div style={s.datePicker} className="rooms-datepicker">
         <div style={s.dateLabel}>Check availability for:</div>
         <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} style={s.dateInput} />
         {!isToday && <button style={s.todayBtn} onClick={() => setSelectedDate(toDateStr(new Date()))}>Today</button>}
-        <div style={s.dateSummary}>{availCount} of {rooms.length} rooms available</div>
+        <div style={s.dateSummary} className="rooms-datesummary">{availCount} of {rooms.length} rooms available</div>
       </div>
 
       <div style={s.legend}>
@@ -304,7 +315,7 @@ export default function RoomsPage() {
             <span style={{ ...s.catTag, background: CAT[cat].bg, color: CAT[cat].text }}>{rooms.filter(r => r.category === cat).length} rooms</span>
             <span style={{ ...s.catTag, background: '#EAF3DE', color: '#3B6D11', marginLeft: 4 }}>{rooms.filter(r => r.category === cat && getRoomInfo(r).status === 'available').length} available</span>
           </div>
-          <div style={s.grid}>
+          <div style={s.grid} className="rooms-grid">
             {rooms.filter(r => r.category === cat).map(room => {
               const info = getRoomInfo(room);
               return (
