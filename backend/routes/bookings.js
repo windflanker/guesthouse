@@ -8,7 +8,7 @@ import {
 
 const router = Router();
 
-// POST /api/bookings
+// POST /api/bookings — guest submits request
 router.post('/', async (req, res) => {
   try {
     const { officer, category, checkin, checkout } = req.body;
@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/bookings
+// GET /api/bookings — returns ALL officer fields
 router.get('/', requireAuth, async (req, res) => {
   try {
     const filter = {};
@@ -30,7 +30,8 @@ router.get('/', requireAuth, async (req, res) => {
     if (req.query.category) filter.category = parseInt(req.query.category);
     const bookings = await Booking.find(filter)
       .populate('room', 'number name category')
-      .sort('-createdAt');
+      .sort('-createdAt')
+      .lean();
     res.json(bookings);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -40,7 +41,9 @@ router.get('/', requireAuth, async (req, res) => {
 // GET /api/bookings/:id
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id).populate('room');
+    const booking = await Booking.findById(req.params.id)
+      .populate('room')
+      .lean();
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     res.json(booking);
   } catch (err) {
@@ -72,7 +75,7 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
 
     if (conflict) {
       return res.status(400).json({
-        message: `This room is already booked from ${conflict.checkin} to ${conflict.checkout} for ${conflict.officer.name}. Please select a different room.`
+        message: `Room already booked from ${conflict.checkin} to ${conflict.checkout} for ${conflict.officer.name}. Please select a different room.`
       });
     }
 
@@ -87,56 +90,6 @@ router.patch('/:id/approve', requireAuth, async (req, res) => {
 
     await booking.populate('room', 'number name category');
     await smsApproved(booking).catch(console.error);
-
-    res.json(booking);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PATCH /api/bookings/:id/reassign — reassign room for already approved bookings
-router.patch('/:id/reassign', requireAuth, async (req, res) => {
-  try {
-    const { roomId } = req.body;
-    if (!roomId) return res.status(400).json({ message: 'roomId required' });
-
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
-    const room = await Room.findById(roomId);
-    if (!room) return res.status(400).json({ message: 'Room not found' });
-
-    const conflict = await Booking.findOne({
-      room: roomId,
-      status: { $in: ['Approved', 'Checked In'] },
-      checkin: { $lt: booking.checkout },
-      checkout: { $gt: booking.checkin },
-      _id: { $ne: booking._id },
-    });
-
-    if (conflict) {
-      return res.status(400).json({
-        message: `This room is already booked from ${conflict.checkin} to ${conflict.checkout} for ${conflict.officer.name}. Please select a different room.`
-      });
-    }
-
-    // Release old room if any
-    if (booking.room) {
-      await Room.findByIdAndUpdate(booking.room, {
-        status: 'available', currentGuest: null, currentBooking: null,
-      });
-    }
-
-    // Assign new room
-    booking.room = room._id;
-    await booking.save();
-
-    room.status         = 'pending';
-    room.currentGuest   = booking.officer.name;
-    room.currentBooking = booking._id;
-    await room.save();
-
-    await booking.populate('room', 'number name category');
     res.json(booking);
   } catch (err) {
     res.status(500).json({ message: err.message });
