@@ -24,8 +24,8 @@ router.get('/available/:category', async (req, res) => {
     if (checkin && checkout) {
       const overlapping = await Booking.find({
         status: { $in: ['Approved', 'Checked In'] },
-        checkin: { $lt: checkout },  // existing booking starts before new checkout
-        checkout: { $gt: checkin },  // existing booking ends after new checkin
+        checkin: { $lt: checkout },
+        checkout: { $gt: checkin },
       }).select('room');
 
       occupiedRoomIds = overlapping
