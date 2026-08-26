@@ -25,17 +25,23 @@ function calcNights(checkin, checkout) {
   return diff > 0 ? diff : 0;
 }
 
+const emptyGuest = { name: '', idType: '', idNumber: '' };
+
 export default function NewBookingPage() {
   const [form, setForm] = useState({
     name: '', rank: '', unit: '', mobile: '', email: '',
     idType: '', idNumber: '', checkin: '', checkout: '', arrivalTime: '',
   });
+  const [numRooms, setNumRooms] = useState(1);
+  const [guests, setGuests] = useState([{ ...emptyGuest }]);
   const [touched, setTouched] = useState({});
+  const [guestTouched, setGuestTouched] = useState([{}]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const touch = (key) => setTouched(t => ({ ...t, [key]: true }));
+
   const mobileError = form.mobile && !/^\d{10}$/.test(form.mobile) ? 'Must be 10 digits' : '';
 
   const fieldError = (key) => {
@@ -47,28 +53,81 @@ export default function NewBookingPage() {
     return '';
   };
 
+  const guestError = (index, key) => {
+    if (!guestTouched[index]?.[key]) return '';
+    if (key === 'name' && !guests[index].name.trim()) return 'Required';
+    return '';
+  };
+
   const nights = calcNights(form.checkin, form.checkout);
-  const isFormValid = REQUIRED_FIELDS.every(k => form[k]) && /^\d{10}$/.test(form.mobile) && nights > 0;
+
+  const isFormValid = () => {
+    if (!REQUIRED_FIELDS.every(k => form[k])) return false;
+    if (!/^\d{10}$/.test(form.mobile)) return false;
+    if (nights <= 0) return false;
+    for (const g of guests) {
+      if (!g.name.trim()) return false;
+    }
+    return true;
+  };
+
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const handleNumRoomsChange = (e) => {
+    const n = parseInt(e.target.value);
+    setNumRooms(n);
+    // Adjust guests array — Guest 1 is main applicant, additional guests are n-1
+    const additionalCount = n - 1;
+    const newGuests = Array.from({ length: additionalCount }, (_, i) => guests[i] || { ...emptyGuest });
+    setGuests(newGuests);
+    setGuestTouched(Array.from({ length: additionalCount }, (_, i) => guestTouched[i] || {}));
+  };
+
+  const setGuestField = (index, key) => (e) => {
+    setGuests(gs => gs.map((g, i) => i === index ? { ...g, [key]: e.target.value } : g));
+  };
+
+  const touchGuest = (index, key) => {
+    setGuestTouched(gt => gt.map((g, i) => i === index ? { ...g, [key]: true } : g));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const allTouched = REQUIRED_FIELDS.reduce((acc, k) => ({ ...acc, [k]: true }), {});
     setTouched(allTouched);
-    if (!isFormValid) return;
+    setGuestTouched(guests.map(() => ({ name: true })));
+    if (!isFormValid()) return;
+
     setLoading(true); setError('');
     try {
-      await api.post('/bookings', {
-        officer: {
-          name: form.name, rank: form.rank, unit: form.unit,
-          mobile: form.mobile, email: form.email,
-          idType: form.idType, idNumber: form.idNumber,
-          arrivalTime: form.arrivalTime,
-        },
-        category: RANKS.find(r => r.label === form.rank)?.value || 1,
-        checkin: form.checkin,
-        checkout: form.checkout,
-      });
+      if (numRooms === 1) {
+        // Single booking
+        await api.post('/bookings', {
+          officer: {
+            name: form.name, rank: form.rank, unit: form.unit,
+            mobile: form.mobile, email: form.email,
+            idType: form.idType, idNumber: form.idNumber,
+            arrivalTime: form.arrivalTime,
+          },
+          category: RANKS.find(r => r.label === form.rank)?.value || 1,
+          checkin: form.checkin,
+          checkout: form.checkout,
+        });
+      } else {
+        // Group booking
+        await api.post('/bookings/group', {
+          mainApplicant: {
+            name: form.name, rank: form.rank, unit: form.unit,
+            mobile: form.mobile, email: form.email,
+            idType: form.idType, idNumber: form.idNumber,
+            arrivalTime: form.arrivalTime,
+          },
+          guests,
+          category: RANKS.find(r => r.label === form.rank)?.value || 1,
+          checkin: form.checkin,
+          checkout: form.checkout,
+        });
+      }
       setSubmitted(true);
     } catch (err) {
       setError(err.message);
@@ -85,12 +144,15 @@ export default function NewBookingPage() {
           <div style={{ fontSize: 48, margin: '8px 0' }}>✓</div>
           <h2 style={s.heading}>Request Submitted</h2>
           <p style={{ fontSize: 14, color: '#5A5855', marginBottom: 24, textAlign: 'center' }}>
-            Your booking request is pending admin approval. You will receive an SMS once approved.
+            Your booking request for <strong>{numRooms} room{numRooms > 1 ? 's' : ''}</strong> is pending admin approval. You will receive an SMS once approved.
           </p>
           <button style={s.submitBtn} onClick={() => {
             setSubmitted(false);
             setForm({ name:'', rank:'', unit:'', mobile:'', email:'', idType:'', idNumber:'', checkin:'', checkout:'', arrivalTime:'' });
+            setNumRooms(1);
+            setGuests([{ ...emptyGuest }]);
             setTouched({});
+            setGuestTouched([{}]);
           }}>
             Submit Another Request
           </button>
@@ -107,16 +169,29 @@ export default function NewBookingPage() {
         <p style={s.sub}>Officers' Guest House</p>
         <div style={s.divider} />
 
+        {/* Preview banner */}
         {form.name && form.rank && (
           <div style={s.guestBanner}>
             <div style={s.guestBannerRow}>
-              <span style={s.guestBannerLabel}>Officer</span>
+              <span style={s.guestBannerLabel}>Guest</span>
               <span style={s.guestBannerVal}>{form.rank} {form.name}</span>
             </div>
             {form.unit && (
               <div style={s.guestBannerRow}>
-                <span style={s.guestBannerLabel}>Unit</span>
+                <span style={s.guestBannerLabel}>Unit / Guest of</span>
                 <span style={s.guestBannerVal}>{form.unit}</span>
+              </div>
+            )}
+            {numRooms > 1 && guests.filter(g => g.name).length > 0 && (
+              <div style={s.guestBannerRow}>
+                <span style={s.guestBannerLabel}>Also</span>
+                <span style={s.guestBannerVal}>{guests.filter(g => g.name).map(g => g.name).join(', ')}</span>
+              </div>
+            )}
+            {numRooms > 0 && (
+              <div style={s.guestBannerRow}>
+                <span style={s.guestBannerLabel}>Rooms</span>
+                <span style={s.guestBannerVal}>{numRooms} room{numRooms > 1 ? 's' : ''}</span>
               </div>
             )}
           </div>
@@ -125,7 +200,9 @@ export default function NewBookingPage() {
         {error && <div style={s.errorBanner}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }} noValidate>
-          <div style={s.sectionLabel}>Personal Details</div>
+
+          {/* Main applicant details */}
+          <div style={s.sectionLabel}>Applicant Details</div>
           <div className="form-grid" style={s.grid}>
             <Field label="Full Name" error={fieldError('name')} required>
               <input style={inputStyle(fieldError('name'))} value={form.name}
@@ -170,6 +247,7 @@ export default function NewBookingPage() {
             </Field>
           </div>
 
+          {/* Stay details */}
           <div style={{ ...s.sectionLabel, marginTop: 24 }}>Stay Details</div>
           <div className="form-grid" style={s.grid}>
             <Field label="Check-in Date" error={fieldError('checkin')} required>
@@ -184,31 +262,68 @@ export default function NewBookingPage() {
               <input type="time" style={inputStyle(fieldError('arrivalTime'))} value={form.arrivalTime}
                 onChange={set('arrivalTime')} onBlur={() => touch('arrivalTime')} />
             </Field>
+            <Field label="Number of Guest Rooms Needed" required>
+              <select style={inputStyle('')} value={numRooms} onChange={handleNumRoomsChange}>
+                {[1,2,3,4,5,6,7,8].map(n => (
+                  <option key={n} value={n}>{n} room{n > 1 ? 's' : ''}</option>
+                ))}
+              </select>
+            </Field>
           </div>
 
-          {/* Nights counter + checkout note */}
+          {/* Nights counter */}
           {form.checkin && form.checkout && nights > 0 && (
             <div style={s.nightsBox}>
               <div style={s.nightsCount}>
                 🌙 <strong>{nights} night{nights > 1 ? 's' : ''}</strong>
                 <span style={s.nightsDates}> &nbsp;({form.checkin} → {form.checkout})</span>
               </div>
-              <div style={s.checkoutNote}>
-                Check-out time: <strong>1000h</strong>
-              </div>
+              <div style={s.checkoutNote}>Check-out time: <strong>1000h</strong></div>
             </div>
           )}
 
           {!(form.checkin && form.checkout && nights > 0) && (
-            <div style={s.checkoutNoteAlone}>
-              Check-out time is <strong>1000h</strong>
+            <div style={s.checkoutNoteAlone}>Check-out time is <strong>1000h</strong></div>
+          )}
+
+          {/* Additional guests */}
+          {numRooms > 1 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={s.sectionLabel}>Additional Guests</div>
+              {guests.map((guest, index) => (
+                <div key={index} style={s.guestBlock}>
+                  <div style={s.guestBlockTitle}>Guest {index + 2}</div>
+                  <div className="form-grid" style={s.grid}>
+                    <Field label="Full Name" error={guestError(index, 'name')} required>
+                      <input style={inputStyle(guestError(index, 'name'))} value={guest.name}
+                        onChange={setGuestField(index, 'name')}
+                        onBlur={() => touchGuest(index, 'name')}
+                        placeholder="e.g. Priya Sharma" />
+                    </Field>
+                    <Field label="Govt ID Type">
+                      <select style={inputStyle('')} value={guest.idType}
+                        onChange={setGuestField(index, 'idType')}>
+                        <option value="">Select (optional)</option>
+                        <option>Service ID card</option>
+                        <option>Aadhaar card</option>
+                        <option>Passport</option>
+                      </select>
+                    </Field>
+                    <Field label="Govt ID Number">
+                      <input style={inputStyle('')} value={guest.idNumber}
+                        onChange={setGuestField(index, 'idNumber')}
+                        placeholder="ID number (optional)" />
+                    </Field>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
           <button type="submit"
-            style={{ ...s.submitBtn, opacity: isFormValid ? 1 : 0.45, cursor: isFormValid ? 'pointer' : 'not-allowed' }}
-            disabled={!isFormValid || loading}>
-            {loading ? 'Submitting…' : 'Submit Booking Request'}
+            style={{ ...s.submitBtn, opacity: isFormValid() ? 1 : 0.45, cursor: isFormValid() ? 'pointer' : 'not-allowed' }}
+            disabled={!isFormValid() || loading}>
+            {loading ? 'Submitting…' : `Submit Request for ${numRooms} Room${numRooms > 1 ? 's' : ''}`}
           </button>
         </form>
       </div>
@@ -246,7 +361,7 @@ const s = {
   divider:          { width: 48, height: 2, background: '#185FA5', borderRadius: 99, margin: '14px 0 18px', opacity: 0.4 },
   guestBanner:      { width: '100%', background: '#E6F1FB', border: '0.5px solid #B8D4F0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 4 },
   guestBannerRow:   { display: 'flex', gap: 12, fontSize: 13 },
-  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 56 },
+  guestBannerLabel: { color: '#185FA5', fontWeight: 500, minWidth: 90 },
   guestBannerVal:   { color: '#1A1917' },
   errorBanner:      { width: '100%', background: '#FCEBEB', color: '#A32D2D', fontSize: 13, padding: '10px 14px', borderRadius: 8, marginBottom: 16 },
   sectionLabel:     { width: '100%', fontSize: 11, fontWeight: 500, color: '#9A9895', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 },
@@ -256,5 +371,7 @@ const s = {
   nightsDates:      { fontSize: 13, color: '#5A5855' },
   checkoutNote:     { fontSize: 13, color: '#854F0B' },
   checkoutNoteAlone:{ width: '100%', marginTop: 14, fontSize: 13, color: '#854F0B', background: '#FAEEDA', border: '0.5px solid #F5C97A', borderRadius: 8, padding: '10px 14px' },
+  guestBlock:       { background: '#F7F6F2', border: '0.5px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 },
+  guestBlockTitle:  { fontSize: 12, fontWeight: 600, color: '#185FA5', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' },
   submitBtn:        { marginTop: 24, background: '#185FA5', color: '#fff', border: 'none', padding: '13px 32px', fontSize: 15, fontWeight: 500, borderRadius: 10, width: '100%', cursor: 'pointer' },
 };
