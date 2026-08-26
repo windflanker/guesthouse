@@ -14,6 +14,8 @@ const officerSchema = new mongoose.Schema({
 
 const bookingSchema = new mongoose.Schema({
   ref:           { type: String, unique: true },
+  groupRef:      { type: String, default: null },  // links grouped bookings e.g. BK-010
+  isGroupLead:   { type: Boolean, default: false }, // true for main applicant booking
   officer:       { type: officerSchema, required: true },
   category:      { type: Number, enum: [1, 2, 3], required: true },
   room:          { type: mongoose.Schema.Types.ObjectId, ref: 'Room', default: null },
