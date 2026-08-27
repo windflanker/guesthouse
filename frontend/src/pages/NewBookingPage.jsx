@@ -15,7 +15,7 @@ const RANKS = [
   { value: 3, label: 'General' },
 ];
 
-const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime'];
+const REQUIRED_FIELDS = ['name', 'rank', 'unit', 'mobile', 'idType', 'idNumber', 'checkin', 'checkout', 'arrivalTime', 'reference'];
 
 function calcNights(checkin, checkout) {
   if (!checkin || !checkout) return 0;
@@ -30,12 +30,13 @@ const emptyGuest = { name: '', idType: '', idNumber: '' };
 export default function NewBookingPage() {
   const [form, setForm] = useState({
     name: '', rank: '', unit: '', mobile: '', email: '',
-    idType: '', idNumber: '', checkin: '', checkout: '', arrivalTime: '',
+    idType: '', idNumber: '', checkin: '', checkout: '',
+    arrivalTime: '', reference: '',
   });
   const [numRooms, setNumRooms] = useState(1);
-  const [guests, setGuests] = useState([{ ...emptyGuest }]);
+  const [guests, setGuests] = useState([]);
   const [touched, setTouched] = useState({});
-  const [guestTouched, setGuestTouched] = useState([{}]);
+  const [guestTouched, setGuestTouched] = useState([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -55,7 +56,7 @@ export default function NewBookingPage() {
 
   const guestError = (index, key) => {
     if (!guestTouched[index]?.[key]) return '';
-    if (key === 'name' && !guests[index].name.trim()) return 'Required';
+    if (key === 'name' && !guests[index]?.name?.trim()) return 'Required';
     return '';
   };
 
@@ -76,7 +77,6 @@ export default function NewBookingPage() {
   const handleNumRoomsChange = (e) => {
     const n = parseInt(e.target.value);
     setNumRooms(n);
-    // Adjust guests array — Guest 1 is main applicant, additional guests are n-1
     const additionalCount = n - 1;
     const newGuests = Array.from({ length: additionalCount }, (_, i) => guests[i] || { ...emptyGuest });
     setGuests(newGuests);
@@ -101,26 +101,24 @@ export default function NewBookingPage() {
     setLoading(true); setError('');
     try {
       if (numRooms === 1) {
-        // Single booking
         await api.post('/bookings', {
           officer: {
             name: form.name, rank: form.rank, unit: form.unit,
             mobile: form.mobile, email: form.email,
             idType: form.idType, idNumber: form.idNumber,
-            arrivalTime: form.arrivalTime,
+            arrivalTime: form.arrivalTime, reference: form.reference,
           },
           category: RANKS.find(r => r.label === form.rank)?.value || 1,
           checkin: form.checkin,
           checkout: form.checkout,
         });
       } else {
-        // Group booking
         await api.post('/bookings/group', {
           mainApplicant: {
             name: form.name, rank: form.rank, unit: form.unit,
             mobile: form.mobile, email: form.email,
             idType: form.idType, idNumber: form.idNumber,
-            arrivalTime: form.arrivalTime,
+            arrivalTime: form.arrivalTime, reference: form.reference,
           },
           guests,
           category: RANKS.find(r => r.label === form.rank)?.value || 1,
@@ -148,11 +146,11 @@ export default function NewBookingPage() {
           </p>
           <button style={s.submitBtn} onClick={() => {
             setSubmitted(false);
-            setForm({ name:'', rank:'', unit:'', mobile:'', email:'', idType:'', idNumber:'', checkin:'', checkout:'', arrivalTime:'' });
+            setForm({ name:'', rank:'', unit:'', mobile:'', email:'', idType:'', idNumber:'', checkin:'', checkout:'', arrivalTime:'', reference:'' });
             setNumRooms(1);
-            setGuests([{ ...emptyGuest }]);
+            setGuests([]);
             setTouched({});
-            setGuestTouched([{}]);
+            setGuestTouched([]);
           }}>
             Submit Another Request
           </button>
@@ -182,6 +180,12 @@ export default function NewBookingPage() {
                 <span style={s.guestBannerVal}>{form.unit}</span>
               </div>
             )}
+            {form.reference && (
+              <div style={s.guestBannerRow}>
+                <span style={s.guestBannerLabel}>Reference</span>
+                <span style={s.guestBannerVal}>{form.reference}</span>
+              </div>
+            )}
             {numRooms > 1 && guests.filter(g => g.name).length > 0 && (
               <div style={s.guestBannerRow}>
                 <span style={s.guestBannerLabel}>Also</span>
@@ -201,7 +205,6 @@ export default function NewBookingPage() {
 
         <form onSubmit={handleSubmit} style={{ width: '100%' }} noValidate>
 
-          {/* Main applicant details */}
           <div style={s.sectionLabel}>Applicant Details</div>
           <div className="form-grid" style={s.grid}>
             <Field label="Full Name" error={fieldError('name')} required>
@@ -245,9 +248,13 @@ export default function NewBookingPage() {
                 onChange={set('idNumber')} onBlur={() => touch('idNumber')}
                 placeholder="ID number" />
             </Field>
+            <Field label="Reference" error={fieldError('reference')} required>
+              <input style={inputStyle(fieldError('reference'))} value={form.reference}
+                onChange={set('reference')} onBlur={() => touch('reference')}
+                placeholder="e.g. Col XYZ Sharma" />
+            </Field>
           </div>
 
-          {/* Stay details */}
           <div style={{ ...s.sectionLabel, marginTop: 24 }}>Stay Details</div>
           <div className="form-grid" style={s.grid}>
             <Field label="Check-in Date" error={fieldError('checkin')} required>
