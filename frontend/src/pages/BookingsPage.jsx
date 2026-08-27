@@ -7,16 +7,16 @@ const CAT_LABELS = { 1: 'Cat 1', 2: 'Cat 2', 3: 'Cat 3' };
 
 const DOMI_ROOMS = ['R-113', 'R-114', 'R-115', 'R-116'];
 
-const overlay    = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
-const popupBox   = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' };
-const popupHeader= { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '0.5px solid rgba(0,0,0,0.1)' };
-const popupTitle = { fontSize: 16, fontWeight: 600, color: '#1A1917' };
-const closeBtn   = { background: 'none', border: 'none', fontSize: 18, color: '#9A9895', cursor: 'pointer', padding: '2px 6px' };
-const popupBody  = { padding: '8px 20px' };
-const detailRow  = { display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)', fontSize: 13, gap: 12 };
-const detailLabel= { color: '#9A9895', minWidth: 100, flexShrink: 0 };
-const detailVal  = { color: '#1A1917', textAlign: 'right', wordBreak: 'break-all' };
-const doneBtn    = { background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' };
+const overlay     = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+const popupBox    = { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' };
+const popupHeader = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '0.5px solid rgba(0,0,0,0.1)' };
+const popupTitle  = { fontSize: 16, fontWeight: 600, color: '#1A1917' };
+const closeBtn    = { background: 'none', border: 'none', fontSize: 18, color: '#9A9895', cursor: 'pointer', padding: '2px 6px' };
+const popupBody   = { padding: '8px 20px' };
+const detailRow   = { display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)', fontSize: 13, gap: 12 };
+const detailLabel = { color: '#9A9895', minWidth: 100, flexShrink: 0 };
+const detailVal   = { color: '#1A1917', textAlign: 'right', wordBreak: 'break-all' };
+const doneBtn     = { background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' };
 
 function getSalutation() {
   const hour = new Date().getHours();
@@ -46,11 +46,11 @@ function buildMessage(type, booking) {
   switch (type) {
     case 'approve':
       if (isDomiRoom(booking)) return buildGuestMessage(booking);
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} is confirmed. The Guest Room NCO shall reach out and get in touch please.\n\nRegards`;
     case 'reject':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has not been confirmed. For further details please contact the Guest House office.\n\nRegards`;
     case 'cancel':
-      return `Dear ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
+      return `Dear ${booking.officer.rank} ${booking.officer.name},\n\nYour request for guest room from ${booking.checkin} to ${booking.checkout} has been cancelled. For further details please contact the Guest House office.\n\nRegards`;
     default:
       return '';
   }
@@ -117,20 +117,19 @@ const ws = {
 };
 
 export default function BookingsPage() {
-  const [bookings, setBookings]       = useState([]);
+  const [bookings, setBookings]         = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterCat, setFilterCat]     = useState('');
-  const [modal, setModal]             = useState(null);
-  const [availRooms, setAvailRooms]   = useState([]);
-  const [formData, setFormData]       = useState({});
-  const [loading, setLoading]         = useState(false);
-  const [actionDone, setActionDone]   = useState(false);
-  const [detailPopup, setDetailPopup] = useState(null);
+  const [filterCat, setFilterCat]       = useState('');
+  const [modal, setModal]               = useState(null);
+  const [availRooms, setAvailRooms]     = useState([]);
+  const [formData, setFormData]         = useState({});
+  const [loading, setLoading]           = useState(false);
+  const [actionDone, setActionDone]     = useState(false);
+  const [detailPopup, setDetailPopup]   = useState(null);
 
-  // Separate confirmed state for each message
-  const [guestConfirmed,    setGuestConfirmed]    = useState(false);
-  const [ncoConfirmed,      setNcoConfirmed]      = useState(false);
-  const [catererConfirmed,  setCatererConfirmed]  = useState(false);
+  const [guestConfirmed,   setGuestConfirmed]   = useState(false);
+  const [ncoConfirmed,     setNcoConfirmed]     = useState(false);
+  const [catererConfirmed, setCatererConfirmed] = useState(false);
 
   const allConfirmed = (booking) => {
     if (isDomiRoom(booking)) return guestConfirmed && ncoConfirmed && catererConfirmed;
@@ -340,16 +339,17 @@ export default function BookingsPage() {
             <div style={popupBody}>
               {[
                 ['Full Name',    `${detailPopup.officer.rank} ${detailPopup.officer.name}`],
-                ['Unit',         detailPopup.officer.unit],
-                ['Mobile',       detailPopup.officer.mobile],
-                ['Email',        detailPopup.officer.email || '—'],
-                ['ID Type',      detailPopup.officer.idType || '—'],
-                ['ID Number',    detailPopup.officer.idNumber || '—'],
-                ['Arrival Time', detailPopup.officer.arrivalTime || '—'],
-                ['Check-in',     detailPopup.checkin],
-                ['Check-out',    detailPopup.checkout],
-                ['Room',         detailPopup.room ? `${detailPopup.room.name} (${detailPopup.room.number})` : 'Not assigned'],
-                ['Status',       detailPopup.status],
+                ['Unit',          detailPopup.officer.unit],
+                ['Reference',     detailPopup.officer.reference || '—'],
+                ['Mobile',        detailPopup.officer.mobile],
+                ['Email',         detailPopup.officer.email || '—'],
+                ['ID Type',       detailPopup.officer.idType || '—'],
+                ['ID Number',     detailPopup.officer.idNumber || '—'],
+                ['Arrival Time',  detailPopup.officer.arrivalTime || '—'],
+                ['Check-in',      detailPopup.checkin],
+                ['Check-out',     detailPopup.checkout],
+                ['Room',          detailPopup.room ? `${detailPopup.room.name} (${detailPopup.room.number})` : 'Not assigned'],
+                ['Status',        detailPopup.status],
               ].map(([label, value]) => (
                 <div key={label} style={detailRow}>
                   <span style={detailLabel}>{label}</span>
@@ -377,6 +377,7 @@ export default function BookingsPage() {
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
               <InfoRow label="Unit" value={modal.booking.officer.unit} />
+              <InfoRow label="Reference" value={modal.booking.officer.reference || '—'} />
               <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
               <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
               {roomDropdown(true)}
@@ -390,8 +391,6 @@ export default function BookingsPage() {
           ) : (
             <>
               <div style={doneBox}>✅ Booking approved successfully!</div>
-
-              {/* Guest message — always shown */}
               <WhatsAppBox
                 label="💬 Message to Guest"
                 mobile={modal.booking.officer.mobile}
@@ -399,8 +398,6 @@ export default function BookingsPage() {
                 confirmed={guestConfirmed}
                 onConfirmed={setGuestConfirmed}
               />
-
-              {/* NCO and Caterer messages — only for DOMI rooms */}
               {isDomiRoom(modal.booking) && (
                 <>
                   <WhatsAppBox
@@ -419,7 +416,6 @@ export default function BookingsPage() {
                   />
                 </>
               )}
-
               <ModalActions>
                 <button style={s.mBtn('blue')} onClick={closeModal}>
                   {allConfirmed(modal.booking) ? '✓ Done — All Messages Sent' : 'Done'}
@@ -464,6 +460,7 @@ export default function BookingsPage() {
           {!actionDone ? (
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Reference" value={modal.booking.officer.reference || '—'} />
               <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
               <InfoRow label="Stay" value={`${modal.booking.checkin} → ${modal.booking.checkout}`} />
               <ModalActions>
@@ -495,6 +492,7 @@ export default function BookingsPage() {
           {!actionDone ? (
             <>
               <InfoRow label="Officer" value={`${modal.booking.officer.rank} ${modal.booking.officer.name}`} />
+              <InfoRow label="Reference" value={modal.booking.officer.reference || '—'} />
               <InfoRow label="Mobile" value={modal.booking.officer.mobile} />
               <InfoRow label="Status" value={<Badge status={modal.booking.status} />} />
               {modal.booking.room && <InfoRow label="Room" value={`${modal.booking.room?.name} — will be released`} />}
