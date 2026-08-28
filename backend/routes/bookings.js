@@ -33,7 +33,6 @@ router.post('/group', async (req, res) => {
     if (!guests || guests.length === 0)
       return res.status(400).json({ message: 'At least one guest is required' });
 
-    // Validate additional guests have names
     for (const g of guests) {
       if (!g.name?.trim())
         return res.status(400).json({ message: 'All guest names are required' });
@@ -41,17 +40,18 @@ router.post('/group', async (req, res) => {
 
     const createdBookings = [];
 
-    // Create lead booking for main applicant (Guest 1)
+    // Create lead booking for main applicant
     const leadBooking = new Booking({
       officer: {
-        name: mainApplicant.name,
-        rank: mainApplicant.rank,
-        unit: mainApplicant.unit,
-        mobile: mainApplicant.mobile,
-        email: mainApplicant.email,
-        idType: mainApplicant.idType,
-        idNumber: mainApplicant.idNumber,
+        name:        mainApplicant.name,
+        rank:        mainApplicant.rank,
+        unit:        mainApplicant.unit,
+        mobile:      mainApplicant.mobile,
+        email:       mainApplicant.email,
+        idType:      mainApplicant.idType,
+        idNumber:    mainApplicant.idNumber,
         arrivalTime: mainApplicant.arrivalTime,
+        reference:   mainApplicant.reference,
       },
       category,
       checkin,
@@ -60,7 +60,7 @@ router.post('/group', async (req, res) => {
     });
     await leadBooking.save();
 
-    // Set groupRef to lead booking ref for all
+    // Set groupRef to lead booking ref
     const groupRef = leadBooking.ref;
     leadBooking.groupRef = groupRef;
     await leadBooking.save();
@@ -72,14 +72,15 @@ router.post('/group', async (req, res) => {
       const guest = guests[i];
       const booking = new Booking({
         officer: {
-          name: guest.name,
-          rank: mainApplicant.rank, // same rank group
-          unit: mainApplicant.unit,
-          mobile: mainApplicant.mobile, // main applicant mobile for contact
-          email: mainApplicant.email,
-          idType: guest.idType || '',
-          idNumber: guest.idNumber || '',
+          name:        guest.name,
+          rank:        mainApplicant.rank,
+          unit:        mainApplicant.unit,
+          mobile:      mainApplicant.mobile,
+          email:       mainApplicant.email,
+          idType:      guest.idType || '',
+          idNumber:    guest.idNumber || '',
           arrivalTime: mainApplicant.arrivalTime,
+          reference:   mainApplicant.reference,
         },
         category,
         checkin,
