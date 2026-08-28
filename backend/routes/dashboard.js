@@ -5,123 +5,204 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-router.get('/', requireAuth, async (_req, res) => {
-  const [rooms, allBookings] = await Promise.all([
-    Room.find(),
-    Booking.find().populate('room', 'number name category'),
-  ]);
+const DOMI_NUMBERS   = ['R-113', 'R-114', 'R-115', 'R-116'];
+const SAHYADRI_NUMBERS = ['R-101', 'R-102', 'R-103', 'R-104', 'R-105', 'R-106', 'R-107', 'R-108', 'R-109', 'R-110', 'R-111', 'R-112'];
 
-  const today = new Date().toISOString().split('T')[0];
-
-  // Active bookings today — checkin <= today < checkout
-  const activeToday = allBookings.filter(b =>
+function getBlockStats(rooms, bookings, date, blockNumbers) {
+  const blockRooms = rooms.filter(r => blockNumbers.includes(r.number));
+  const activeOnDate = bookings.filter(b =>
     ['Approved', 'Checked In'].includes(b.status) &&
-    b.checkin <= today &&
-    b.checkout > today
+    b.checkin <= date &&
+    b.checkout > date &&
+    b.room &&
+    blockRooms.some(r => r._id.toString() === b.room._id.toString())
   );
-
-  // Occupied room IDs today
-  const occupiedRoomIds = new Set(
-    activeToday.filter(b => b.room).map(b => b.room._id.toString())
-  );
-
-  // Room stats based on actual bookings today
-  const roomStats = {
-    total:     rooms.length,
-    occupied:  occupiedRoomIds.size,
-    available: rooms.length - occupiedRoomIds.size,
-    pending:   allBookings.filter(b => b.status === 'Pending').length,
-  };
-
-  const occupancyRate = Math.round((roomStats.occupied / roomStats.total) * 100);
-
-  // Booking stats
-  const bookingStats = {
-    pendingApproval: allBookings.filter(b => b.status === 'Pending').length,
-    checkedIn:       allBookings.filter(b => b.status === 'Checked In').length,
-    checkedOut:      allBookings.filter(b => b.status === 'Checked Out').length,
-    cancelled:       allBookings.filter(b => b.status === 'Cancelled').length,
-    total:           allBookings.length,
-  };
-
-  const cancellationRate = bookingStats.total > 0
-    ? Math.round((bookingStats.cancelled / bookingStats.total) * 100) : 0;
-
-  // Average length of stay
-  const stayLengths = allBookings
-    .filter(b => b.status === 'Checked Out' && b.checkin && b.actualCheckout)
-    .map(b => {
-      const diff = new Date(b.actualCheckout) - new Date(b.checkin);
-      return diff / (1000 * 60 * 60 * 24);
-    });
-  const avgStay = stayLengths.length > 0
-    ? (stayLengths.reduce((a, b) => a + b, 0) / stayLengths.length).toFixed(1) : 0;
-
-  // Category occupancy — based on actual bookings today
-  const categoryOccupancy = [1, 2, 3].map(cat => {
-    const catRooms = rooms.filter(r => r.category === cat);
-    const catOccupied = activeToday.filter(b =>
-      b.room && catRooms.some(r => r._id.toString() === b.room._id.toString())
-    ).length;
-    return {
-      category: cat,
-      total:    catRooms.length,
-      occupied: catOccupied,
-      bookings: allBookings.filter(b => b.category === cat).length,
-    };
-  });
-
-  // Monthly bookings (last 12 months)
-  const now = new Date();
-  const monthlyBookings = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
-    const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-    const count = allBookings.filter(b => b.checkin && b.checkin.startsWith(monthStr)).length;
-    return { month: label, count };
-  });
-
-  // Upcoming check-ins (next 7 days) — Approved bookings
-  const in7 = new Date(); in7.setDate(in7.getDate() + 7);
-  const in7Str = in7.toISOString().split('T')[0];
-
-  const upcomingCheckins = allBookings
-    .filter(b => b.status === 'Approved' && b.checkin >= today && b.checkin <= in7Str)
-    .sort((a, b) => a.checkin.localeCompare(b.checkin))
-    .slice(0, 5);
-
-  // Upcoming check-outs (next 7 days) — Approved OR Checked In
-  const upcomingCheckouts = allBookings
-    .filter(b =>
-      ['Approved', 'Checked In'].includes(b.status) &&
-      b.checkout >= today &&
-      b.checkout <= in7Str
-    )
-    .sort((a, b) => a.checkout.localeCompare(b.checkout))
-    .slice(0, 5);
-
-  // Pending > 24hrs alert
-  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-  const stalePending = allBookings.filter(b =>
-    b.status === 'Pending' && new Date(b.createdAt) < yesterday
+  const occupiedIds = new Set(activeOnDate.map(b => b.room._id.toString()));
+  const pendingApproval = bookings.filter(b =>
+    b.status === 'Pending' &&
+    b.room === null &&
+    blockRooms.some(r => r.category === b.category)
   ).length;
 
-  // Monthly comparison
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonthCount = allBookings.filter(b => b.checkin?.startsWith(thisMonth)).length;
-  const lastMonthCount = allBookings.filter(b => b.checkin?.startsWith(lastMonth)).length;
+  return {
+    total:           blockRooms.length,
+    occupied:        occupiedIds.size,
+    available:       blockRooms.length - occupiedIds.size,
+    pendingApproval: bookings.filter(b => b.status === 'Pending').length,
+  };
+}
 
-  const recentBookings = [...allBookings]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 8);
+router.get('/', requireAuth, async (_req, res) => {
+  try {
+    const [rooms, allBookings] = await Promise.all([
+      Room.find(),
+      Booking.find().populate('room', 'number name category'),
+    ]);
 
-  res.json({
-    roomStats, occupancyRate, bookingStats, cancellationRate, avgStay,
-    categoryOccupancy, monthlyBookings, upcomingCheckins, upcomingCheckouts,
-    stalePending, thisMonthCount, lastMonthCount, recentBookings,
-  });
+    const today = new Date().toISOString().split('T')[0];
+
+    // Active bookings today
+    const activeToday = allBookings.filter(b =>
+      ['Approved', 'Checked In'].includes(b.status) &&
+      b.checkin <= today &&
+      b.checkout > today
+    );
+
+    const occupiedRoomIds = new Set(
+      activeToday.filter(b => b.room).map(b => b.room._id.toString())
+    );
+
+    // Overall room stats today
+    const roomStats = {
+      total:     rooms.length,
+      occupied:  occupiedRoomIds.size,
+      available: rooms.length - occupiedRoomIds.size,
+      pending:   rooms.filter(r => r.status === 'pending').length,
+    };
+
+    // Booking stats
+    const bookingStats = {
+      pendingApproval: allBookings.filter(b => b.status === 'Pending').length,
+      checkedIn:       allBookings.filter(b => b.status === 'Checked In').length,
+      checkedOut:      allBookings.filter(b => b.status === 'Checked Out').length,
+      cancelled:       allBookings.filter(b => b.status === 'Cancelled').length,
+      total:           allBookings.length,
+    };
+
+    // Category occupancy
+    const categoryOccupancy = [1, 2, 3].map(cat => {
+      const catRooms = rooms.filter(r => r.category === cat);
+      const catOccupied = activeToday.filter(b =>
+        b.room && catRooms.some(r => r._id.toString() === b.room._id.toString())
+      ).length;
+      return {
+        category: cat,
+        total:    catRooms.length,
+        occupied: catOccupied,
+      };
+    });
+
+    // DOMI stats today
+    const domiStats = {
+      total:           rooms.filter(r => DOMI_NUMBERS.includes(r.number)).length,
+      occupied:        activeToday.filter(b => b.room && DOMI_NUMBERS.includes(b.room.number)).length,
+      available:       0,
+      pendingApproval: allBookings.filter(b => b.status === 'Pending' && b.room && DOMI_NUMBERS.includes(b.room.number)).length,
+    };
+    domiStats.available = domiStats.total - domiStats.occupied;
+
+    // Sahyadri stats today
+    const sahyadriStats = {
+      total:           rooms.filter(r => SAHYADRI_NUMBERS.includes(r.number)).length,
+      occupied:        activeToday.filter(b => b.room && SAHYADRI_NUMBERS.includes(b.room.number)).length,
+      available:       0,
+      pendingApproval: allBookings.filter(b => b.status === 'Pending' && b.room && SAHYADRI_NUMBERS.includes(b.room.number)).length,
+    };
+    sahyadriStats.available = sahyadriStats.total - sahyadriStats.occupied;
+
+    // Overall pending approval (not yet assigned to any room)
+    const overallPendingApproval = allBookings.filter(b => b.status === 'Pending').length;
+
+    // Upcoming check-ins (next 7 days)
+    const in7 = new Date(); in7.setDate(in7.getDate() + 7);
+    const in7Str = in7.toISOString().split('T')[0];
+
+    const upcomingCheckins = allBookings
+      .filter(b => b.status === 'Approved' && b.checkin >= today && b.checkin <= in7Str)
+      .sort((a, b) => a.checkin.localeCompare(b.checkin))
+      .slice(0, 5);
+
+    const upcomingCheckouts = allBookings
+      .filter(b => ['Approved', 'Checked In'].includes(b.status) && b.checkout >= today && b.checkout <= in7Str)
+      .sort((a, b) => a.checkout.localeCompare(b.checkout))
+      .slice(0, 5);
+
+    // Recent bookings
+    const recentBookings = [...allBookings]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 8);
+
+    // Pending > 24hrs
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const stalePending = allBookings.filter(b =>
+      b.status === 'Pending' && new Date(b.createdAt) < yesterday
+    ).length;
+
+    res.json({
+      roomStats,
+      bookingStats,
+      categoryOccupancy,
+      domiStats,
+      sahyadriStats,
+      overallPendingApproval,
+      upcomingCheckins,
+      upcomingCheckouts,
+      recentBookings,
+      stalePending,
+      today,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Date-specific stats endpoint
+router.get('/date/:date', requireAuth, async (req, res) => {
+  try {
+    const [rooms, allBookings] = await Promise.all([
+      Room.find(),
+      Booking.find().populate('room', 'number name category'),
+    ]);
+
+    const date = req.params.date;
+
+    const activeOnDate = allBookings.filter(b =>
+      ['Approved', 'Checked In'].includes(b.status) &&
+      b.checkin <= date &&
+      b.checkout > date
+    );
+
+    const occupiedIds = new Set(
+      activeOnDate.filter(b => b.room).map(b => b.room._id.toString())
+    );
+
+    const domiRooms     = rooms.filter(r => DOMI_NUMBERS.includes(r.number));
+    const sahyadriRooms = rooms.filter(r => SAHYADRI_NUMBERS.includes(r.number));
+
+    const domiOccupied = activeOnDate.filter(b =>
+      b.room && DOMI_NUMBERS.includes(b.room.number)
+    ).length;
+
+    const sahyadriOccupied = activeOnDate.filter(b =>
+      b.room && SAHYADRI_NUMBERS.includes(b.room.number)
+    ).length;
+
+    const pendingApproval = allBookings.filter(b => b.status === 'Pending').length;
+
+    res.json({
+      date,
+      overall: {
+        total:           rooms.length,
+        available:       rooms.length - occupiedIds.size,
+        occupied:        occupiedIds.size,
+        pendingApproval,
+      },
+      domi: {
+        total:     domiRooms.length,
+        available: domiRooms.length - domiOccupied,
+        occupied:  domiOccupied,
+        pendingApproval,
+      },
+      sahyadri: {
+        total:     sahyadriRooms.length,
+        available: sahyadriRooms.length - sahyadriOccupied,
+        occupied:  sahyadriOccupied,
+        pendingApproval,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 export default router;
