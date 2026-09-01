@@ -205,4 +205,76 @@ router.get('/date/:date', requireAuth, async (req, res) => {
   }
 });
 
+// ── Booking trend (for the dashboard graph + Week/Month/Quarter/Year dropdown) ──
+const fmt = (d) => d.toISOString().split('T')[0];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function buildBuckets(period) {
+  const now = new Date();
+  const utcToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+  if (period === 'week') {
+    // 8 buckets, one per week (Mon–Sun), oldest first.
+    const day = (utcToday.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+    const thisWeekStart = new Date(utcToday); thisWeekStart.setUTCDate(utcToday.getUTCDate() - day);
+    return Array.from({ length: 8 }, (_, i) => {
+      const start = new Date(thisWeekStart); start.setUTCDate(thisWeekStart.getUTCDate() - (7 - i) * 7);
+      const end = new Date(start); end.setUTCDate(start.getUTCDate() + 7);
+      return { start: fmt(start), end: fmt(end), label: `${start.getUTCDate()} ${MONTH_SHORT[start.getUTCMonth()]}` };
+    });
+  }
+
+  if (period === 'quarter') {
+    // 8 buckets, one per quarter, oldest first.
+    const thisQ = Math.floor(utcToday.getUTCMonth() / 3);
+    return Array.from({ length: 8 }, (_, i) => {
+      const totalQ = utcToday.getUTCFullYear() * 4 + thisQ - (7 - i);
+      const y = Math.floor(totalQ / 4), q = totalQ % 4;
+      const start = new Date(Date.UTC(y, q * 3, 1));
+      const end = new Date(Date.UTC(y, q * 3 + 3, 1));
+      return { start: fmt(start), end: fmt(end), label: `Q${q + 1} '${String(y).slice(2)}` };
+    });
+  }
+
+  if (period === 'year') {
+    // 5 buckets, one per year, oldest first.
+    return Array.from({ length: 5 }, (_, i) => {
+      const y = utcToday.getUTCFullYear() - (4 - i);
+      return { start: fmt(new Date(Date.UTC(y, 0, 1))), end: fmt(new Date(Date.UTC(y + 1, 0, 1))), label: String(y) };
+    });
+  }
+
+  // 'month' (default): 12 buckets, one per month, oldest first.
+  return Array.from({ length: 12 }, (_, i) => {
+    const start = new Date(Date.UTC(utcToday.getUTCFullYear(), utcToday.getUTCMonth() - (11 - i), 1));
+    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+    return { start: fmt(start), end: fmt(end), label: `${MONTH_SHORT[start.getUTCMonth()]} '${String(start.getUTCFullYear()).slice(2)}` };
+  });
+}
+
+// GET /api/dashboard/trend?period=week|month|quarter|year
+// Counts bookings (excluding Rejected/Cancelled) by check-in date, bucketed.
+router.get('/trend', requireAuth, async (req, res) => {
+  try {
+    const period = ['week', 'month', 'quarter', 'year'].includes(req.query.period) ? req.query.period : 'month';
+    const buckets = buildBuckets(period);
+
+    const bookings = await Booking.find(
+      { status: { $nin: ['Rejected', 'Cancelled'] } },
+      'checkin'
+    ).lean();
+
+    const counts = buckets.map(b =>
+      bookings.filter(bk => bk.checkin >= b.start && bk.checkin < b.end).length
+    );
+
+    res.json({
+      period,
+      buckets: buckets.map((b, i) => ({ label: b.label, count: counts[i] })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 export default router;
