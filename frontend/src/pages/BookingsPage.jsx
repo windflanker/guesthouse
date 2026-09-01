@@ -4,6 +4,7 @@ import Badge from '../components/Badge.jsx';
 import Modal from '../components/Modal.jsx';
 
 const CAT_LABELS = { 1: 'Cat 1', 2: 'Cat 2', 3: 'Cat 3' };
+const PAGE_SIZE = 18;
 
 const DOMI_ROOMS = ['R-113', 'R-114', 'R-115', 'R-116'];
 
@@ -120,6 +121,7 @@ export default function BookingsPage() {
   const [bookings, setBookings]         = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCat, setFilterCat]       = useState('');
+  const [page, setPage]                 = useState(1);
   const [modal, setModal]               = useState(null);
   const [availRooms, setAvailRooms]     = useState([]);
   const [formData, setFormData]         = useState({});
@@ -144,6 +146,10 @@ export default function BookingsPage() {
   };
 
   useEffect(load, [filterStatus, filterCat]);
+  useEffect(() => setPage(1), [filterStatus, filterCat]);
+
+  const totalPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
+  const pageBookings = bookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const resetConfirmed = () => {
     setGuestConfirmed(false);
@@ -295,7 +301,7 @@ export default function BookingsPage() {
             </tr>
           </thead>
           <tbody>
-            {bookings.map(b => (
+            {pageBookings.map(b => (
               <tr key={b._id}>
                 <td style={{ ...styles.td, color: 'var(--text-3)', fontSize: 12 }}>{b.ref}</td>
                 <td style={{ ...styles.td, fontWeight: 500 }}>
@@ -326,6 +332,20 @@ export default function BookingsPage() {
             ))}
           </tbody>
         </table>
+        {bookings.length > 0 && (
+          <div style={styles.pagination}>
+            <span style={styles.pageInfo}>
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, bookings.length)} of {bookings.length}
+            </span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button style={{ ...styles.pageBtn, ...(page <= 1 ? styles.pageBtnDisabled : {}) }}
+                disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span style={styles.pageNum}>Page {page} of {totalPages}</span>
+              <button style={{ ...styles.pageBtn, ...(page >= totalPages ? styles.pageBtnDisabled : {}) }}
+                disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Guest detail popup */}
@@ -571,4 +591,9 @@ const styles = {
   td:         { padding: '10px 12px', borderBottom: '0.5px solid var(--border)', color: 'var(--text-1)', verticalAlign: 'middle' },
   label:      { fontSize: 12, fontWeight: 500, color: 'var(--text-2)' },
   input:      { display: 'block', width: '100%', padding: '8px 12px', fontSize: 13, border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-1)', outline: 'none' },
+  pagination: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderTop: '0.5px solid var(--border)', flexWrap: 'wrap', gap: 8 },
+  pageInfo:   { fontSize: 12, color: 'var(--text-3)' },
+  pageNum:    { fontSize: 12, color: 'var(--text-2)', padding: '0 4px' },
+  pageBtn:    { fontSize: 12, padding: '5px 10px', border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text-1)', cursor: 'pointer' },
+  pageBtnDisabled: { opacity: 0.4, cursor: 'default' },
 };
